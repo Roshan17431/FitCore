@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @Data
 @Builder
@@ -19,5 +20,6 @@ public class AuthRequest {
     private String email;
     
     @NotBlank(message = "Password is required")
+    @Schema(format = "password", example = "Secure@123")
     private String password;
 }

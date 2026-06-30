@@ -2,6 +2,7 @@ package com.fitcore.gym.entity;
 
 import com.fitcore.gym.domain.Role;
 import jakarta.persistence.*;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,6 +37,7 @@ public class User implements UserDetails {
     private String email;
 
     @Column(nullable = false)
+    @Schema(hidden = true)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
