@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/workouts")
 @RequiredArgsConstructor
@@ -30,7 +32,7 @@ public class WorkoutController {
     @PostMapping("/logs/{userId}")
     public ResponseEntity<WorkoutLogDto> logWorkout(
             @PathVariable UUID userId,
-            @RequestBody WorkoutLogDto request
+            @Valid @RequestBody WorkoutLogDto request
     ) {
         return ResponseEntity.ok(workoutService.logWorkout(userId, request));
     }

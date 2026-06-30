@@ -12,6 +12,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/nutrition")
 @RequiredArgsConstructor
@@ -22,7 +24,7 @@ public class NutritionController {
     @PostMapping("/goal/{userId}")
     public ResponseEntity<NutritionGoalDto> setGoal(
             @PathVariable UUID userId,
-            @RequestBody NutritionGoalDto request
+            @Valid @RequestBody NutritionGoalDto request
     ) {
         return ResponseEntity.ok(nutritionService.setGoal(userId, request));
     }
@@ -39,7 +41,7 @@ public class NutritionController {
     @PostMapping("/log/{userId}")
     public ResponseEntity<FoodLogDto> logFood(
             @PathVariable UUID userId,
-            @RequestBody FoodLogDto request
+            @Valid @RequestBody FoodLogDto request
     ) {
         return ResponseEntity.ok(nutritionService.logFood(userId, request));
     }

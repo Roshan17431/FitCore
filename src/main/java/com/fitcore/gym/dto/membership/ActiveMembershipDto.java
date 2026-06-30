@@ -9,14 +9,23 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class ActiveMembershipDto {
     private Long id;
+    
+    @NotNull(message = "User ID is required")
     private UUID userId;
+    
+    @NotNull(message = "Membership plan is required")
+    @Valid
     private MembershipPlanDto plan;
+    
     private LocalDate startDate;
     private LocalDate endDate;
     private MembershipStatus status;

@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/tracking")
 @RequiredArgsConstructor
@@ -20,7 +22,7 @@ public class TrackingController {
     @PostMapping("/progress/{userId}")
     public ResponseEntity<ProgressMetricDto> logProgress(
             @PathVariable UUID userId,
-            @RequestBody ProgressMetricDto request
+            @Valid @RequestBody ProgressMetricDto request
     ) {
         return ResponseEntity.ok(trackingService.logProgress(userId, request));
     }

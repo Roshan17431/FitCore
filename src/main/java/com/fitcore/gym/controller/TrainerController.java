@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/trainers")
 @RequiredArgsConstructor
@@ -26,7 +28,7 @@ public class TrainerController {
     public ResponseEntity<TrainerSessionDto> bookSession(
             @PathVariable UUID memberId,
             @PathVariable Long trainerId,
-            @RequestBody TrainerSessionDto request
+            @Valid @RequestBody TrainerSessionDto request
     ) {
         return ResponseEntity.ok(trainerService.bookSession(memberId, trainerId, request));
     }
