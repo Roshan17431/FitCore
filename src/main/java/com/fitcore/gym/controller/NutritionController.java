@@ -50,14 +50,15 @@ public class NutritionController {
             description = "Retrieves the current daily nutrition goal for a user.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Successfully retrieved goal"),
-                    @ApiResponse(responseCode = "404", description = "Goal or user not found")
+                    @ApiResponse(responseCode = "204", description = "No goal configured for this user"),
+                    @ApiResponse(responseCode = "404", description = "User not found")
             }
     )
     @GetMapping("/goal/{userId}")
     public ResponseEntity<NutritionGoalDto> getGoal(@PathVariable UUID userId) {
         NutritionGoalDto goal = nutritionService.getGoal(userId);
         if (goal == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(goal);
     }

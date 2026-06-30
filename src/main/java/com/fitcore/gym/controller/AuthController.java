@@ -16,9 +16,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Authentication", description = "Endpoints for user registration and login")
 public class AuthController {
 
@@ -37,6 +40,8 @@ public class AuthController {
     public ResponseEntity<AuthResponse> register(
             @Valid @RequestBody RegisterRequest request
     ) {
+        log.info("Received registration request for email: {}", request.getEmail());
+        log.debug("Full registration request: {}", request);
         return ResponseEntity.ok(authService.register(request));
     }
 

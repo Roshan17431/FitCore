@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -17,7 +19,10 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -33,6 +38,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiErrorResponse> handleUnauthorizedException(UnauthorizedException ex, HttpServletRequest request) {
         return buildErrorResponse(ex, HttpStatus.UNAUTHORIZED, request);
+    }
+
+    @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
+    public ResponseEntity<ApiErrorResponse> handleAuthenticationException(Exception ex, HttpServletRequest request) {
+        return buildErrorResponse(new Exception("Invalid credentials"), HttpStatus.UNAUTHORIZED, request);
     }
 
     @ExceptionHandler(ForbiddenException.class)
@@ -72,6 +82,9 @@ public class GlobalExceptionHandler {
             validationErrors.put(error.getField(), error.getDefaultMessage());
         }
         
+        log.warn("Validation failed for request: {}", request.getRequestURI());
+        log.warn("Validation errors: {}", validationErrors);
+        
         ApiErrorResponse response = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -105,7 +118,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleAllExceptions(Exception ex, HttpServletRequest request) {
-        ex.printStackTrace(); // Minimal logging for unexpected errors
+        log.error("Unhandled Exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         return buildErrorResponse(new Exception("An unexpected error occurred"), HttpStatus.INTERNAL_SERVER_ERROR, request);
     }
 

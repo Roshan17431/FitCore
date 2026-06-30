@@ -5,6 +5,7 @@ import com.fitcore.gym.dto.auth.AuthRequest;
 import com.fitcore.gym.dto.auth.AuthResponse;
 import com.fitcore.gym.dto.auth.RegisterRequest;
 import com.fitcore.gym.entity.User;
+import com.fitcore.gym.exception.DuplicateResourceException;
 import com.fitcore.gym.repository.UserRepository;
 import com.fitcore.gym.security.JwtService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already in use");
+            throw new DuplicateResourceException("Email already in use");
         }
 
         User user = User.builder()
