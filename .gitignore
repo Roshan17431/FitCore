@@ -1,8 +1,19 @@
-HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+### FitCore ###
+.DS_Store
+*.log
+
+### Backend ###
+gym-backend/HELP.md
+gym-backend/target/
+gym-backend/.mvn/wrapper/maven-wrapper.jar
+!gym-backend/**/src/main/**/target/
+!gym-backend/**/src/test/**/target/
+
+### Frontend ###
+gym-frontend/node_modules/
+gym-frontend/dist/
+gym-frontend/.vite/
+gym-frontend/.vite-temp/
 
 ### STS ###
 .apt_generated
@@ -35,4 +46,10 @@ build/
 ### Environment Variables ###
 .env
 .env.*
+gym-backend/.env
+gym-backend/.env.*
+gym-frontend/.env
+gym-frontend/.env.*
 !.env.example
+!gym-backend/.env.example
+!gym-frontend/.env.example

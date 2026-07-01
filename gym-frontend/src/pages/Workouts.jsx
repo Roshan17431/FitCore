@@ -1,0 +1,220 @@
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
+import Badge from '../components/common/Badge';
+import Button from '../components/common/Button';
+import Card from '../components/common/Card';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ModuleTabs from '../components/common/ModuleTabs';
+import PageHeader from '../components/common/PageHeader';
+import SearchBar from '../components/common/SearchBar';
+import DataTable from '../components/tables/DataTable';
+import { workoutService } from '../services/mockApi';
+import { getCompletionPercentage } from '../utils/calculations';
+import { formatDate } from '../utils/formatters';
+
+const tabs = [
+  { path: '/workouts/library', label: 'Library', icon: Library },
+  { path: '/workouts/plans', label: 'Plans', icon: Dumbbell },
+  { path: '/workouts/tracker', label: 'Daily Tracker', icon: ListChecks },
+  { path: '/workouts/history', label: 'History', icon: History },
+];
+
+const historyColumns = [
+  { key: 'workoutDate', header: 'Workout Date', render: (row) => formatDate(row.workoutDate) },
+  { key: 'duration', header: 'Duration' },
+  { key: 'completedExercises', header: 'Completed Exercises' },
+];
+
+const Workouts = ({ section = 'library' }) => {
+  const [data, setData] = useState(null);
+  const [query, setQuery] = useState('');
+  const [tracker, setTracker] = useState([]);
+
+  useEffect(() => {
+    Promise.all([
+      workoutService.getLibrary(),
+      workoutService.getPlans(),
+      workoutService.getDailyTracker(),
+      workoutService.getHistory(),
+    ]).then(([library, plans, dailyTracker, history]) => {
+      setData({ library, plans, history });
+      setTracker(dailyTracker);
+    });
+  }, []);
+
+  const filteredLibrary = useMemo(() => {
+    if (!data) return [];
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return data.library;
+
+    return data.library
+      .map((group) => ({
+        ...group,
+        exercises: group.exercises.filter((exercise) =>
+          [group.category, exercise.name, exercise.difficulty].some((value) =>
+            value.toLowerCase().includes(normalizedQuery),
+          ),
+        ),
+      }))
+      .filter((group) => group.exercises.length);
+  }, [data, query]);
+
+  const completion = getCompletionPercentage(tracker);
+
+  const updateTracker = (id, field, value) => {
+    setTracker((current) =>
+      current.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    );
+  };
+
+  if (!data) return <LoadingSpinner label="Loading workouts" />;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        actions={section === 'library' ? <SearchBar onChange={setQuery} placeholder="Search exercises" value={query} /> : null}
+        description="Browse exercises, assign plans, complete daily workout sets, and review workout history."
+        icon={Dumbbell}
+        kicker="Workout"
+        title="Workout Management"
+      />
+      <ModuleTabs tabs={tabs} />
+
+      {section === 'library' ? (
+        <div className="space-y-6">
+          {filteredLibrary.map((group) => (
+            <section className="space-y-3" key={group.category}>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-950 dark:text-white">{group.category}</h2>
+                <Badge>{group.exercises.length} exercises</Badge>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {group.exercises.map((exercise) => (
+                  <Card className="overflow-hidden p-0" key={exercise.id}>
+                    <img alt={exercise.name} className="h-44 w-full object-cover" src={exercise.image} />
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-base font-bold text-slate-950 dark:text-white">{exercise.name}</h3>
+                        <Badge tone={exercise.difficulty === 'Advanced' ? 'rose' : exercise.difficulty === 'Intermediate' ? 'amber' : 'emerald'}>
+                          {exercise.difficulty}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{exercise.description}</p>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Sets</p>
+                          <p className="font-bold text-slate-950 dark:text-white">{exercise.sets}</p>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
+                          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Reps</p>
+                          <p className="font-bold text-slate-950 dark:text-white">{exercise.reps}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
+
+      {section === 'plans' ? (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {data.plans.map((plan) => (
+            <Card className="flex min-h-80 flex-col" key={plan.level}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-950 dark:text-white">{plan.level}</h2>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{plan.duration}</p>
+                </div>
+                <Timer className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div className="mt-6">
+                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Weekly Schedule</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                  {plan.schedule.map((item) => (
+                    <li className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/70" key={item}>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-6">
+                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Exercises</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {plan.exercises.map((exercise) => (
+                    <Badge key={exercise} tone="sky">{exercise}</Badge>
+                  ))}
+                </div>
+              </div>
+              <Button className="mt-auto" variant="outline">Assign Plan</Button>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {section === 'tracker' ? (
+        <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
+          <Card>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Completion Percentage</p>
+            <p className="mt-2 text-5xl font-bold text-slate-950 dark:text-white">{completion}%</p>
+            <div className="mt-5 h-3 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="h-3 rounded-full bg-emerald-500 transition-all" style={{ width: `${completion}%` }} />
+            </div>
+            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Track sets, reps, and completed exercises for today's plan.</p>
+          </Card>
+
+          <div className="space-y-3">
+            {tracker.map((exercise) => (
+              <Card className="grid gap-4 sm:grid-cols-[1fr_auto]" key={exercise.id}>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-950 dark:text-white">{exercise.name}</h2>
+                    {exercise.complete ? <Badge tone="emerald">Complete</Badge> : <Badge tone="amber">Pending</Badge>}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Target: {exercise.targetSets} sets x {exercise.targetReps} reps
+                  </p>
+                  <div className="mt-4 grid max-w-sm grid-cols-2 gap-3">
+                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      Sets
+                      <input
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-950"
+                        min="0"
+                        onChange={(event) => updateTracker(exercise.id, 'sets', Number(event.target.value))}
+                        type="number"
+                        value={exercise.sets}
+                      />
+                    </label>
+                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                      Reps
+                      <input
+                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-950"
+                        min="0"
+                        onChange={(event) => updateTracker(exercise.id, 'reps', Number(event.target.value))}
+                        type="number"
+                        value={exercise.reps}
+                      />
+                    </label>
+                  </div>
+                </div>
+                <Button
+                  icon={CheckCircle2}
+                  onClick={() => updateTracker(exercise.id, 'complete', !exercise.complete)}
+                  variant={exercise.complete ? 'outline' : 'primary'}
+                >
+                  {exercise.complete ? 'Mark Pending' : 'Mark Complete'}
+                </Button>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {section === 'history' ? <DataTable columns={historyColumns} data={data.history} /> : null}
+    </div>
+  );
+};
+
+export default Workouts;
