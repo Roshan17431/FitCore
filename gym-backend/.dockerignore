@@ -1,0 +1,7 @@
+.env
+.env.*
+.DS_Store
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+HELP.md

@@ -29,6 +29,46 @@ Backend API base URL:
 http://localhost:8080/api
 ```
 
+### Render Deployment
+
+The backend is Docker-ready for Render:
+
+```text
+gym-backend/Dockerfile
+gym-backend/.dockerignore
+render.yaml
+```
+
+Create a Render Web Service from this repository using the Docker runtime, or use the included `render.yaml` blueprint. The service health check path is:
+
+```text
+/api/health
+```
+
+Required Render environment variables:
+
+```text
+DATABASE_URL=jdbc:postgresql://your-neon-host/your-database?sslmode=require
+DATABASE_USERNAME=your-database-username
+DATABASE_PASSWORD=your-database-password
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRATION_MS=86400000
+CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app
+JPA_DDL_AUTO=update
+SQL_INIT_MODE=always
+AWS_S3_ENABLED=false
+```
+
+Only set the AWS variables if image upload is enabled:
+
+```text
+AWS_S3_ENABLED=true
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=your-region
+AWS_BUCKET_NAME=your-bucket
+```
+
 ## Frontend
 
 ```bash
@@ -39,6 +79,22 @@ npm run dev
 
 The frontend reads `VITE_API_URL` from `gym-frontend/.env`.
 
+### Vercel Deployment
+
+Deploy the frontend as a Vercel project with:
+
+```text
+Root Directory: gym-frontend
+Build Command: npm run build
+Output Directory: dist
+```
+
+The frontend includes `gym-frontend/vercel.json` for Vite SPA routing. Set this Vercel environment variable:
+
+```text
+VITE_API_URL=https://your-render-backend.onrender.com/api
+```
+
 ## Seed Data
 
 Backend seed data is in:
@@ -47,8 +103,4 @@ Backend seed data is in:
 gym-backend/src/main/resources/data.sql
 ```
 
-Seed password for the included demo users:
-
-```text
-Fitcore@123
-```
+Do not commit real `.env` files, JWT secrets, database passwords, or provider credentials.

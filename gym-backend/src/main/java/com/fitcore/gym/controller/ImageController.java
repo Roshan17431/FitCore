@@ -3,6 +3,7 @@ package com.fitcore.gym.controller;
 import com.fitcore.gym.dto.ImageUploadResponse;
 import com.fitcore.gym.service.S3Service;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,6 +16,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 @RestController
 @RequestMapping("/api/images")
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "aws.s3.enabled", havingValue = "true")
 @Tag(name = "Image Upload", description = "Endpoints for uploading and deleting images via AWS S3")
 @SecurityRequirement(name = "Bearer Authentication")
 public class ImageController {

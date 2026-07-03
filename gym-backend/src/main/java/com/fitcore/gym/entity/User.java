@@ -47,7 +47,6 @@ public class User implements UserDetails {
     private String fitnessGoal;
 
     @Builder.Default
-    @Column(nullable = false)
     private Boolean enabled = true;
 
     @CreationTimestamp

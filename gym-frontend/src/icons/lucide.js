@@ -29,6 +29,7 @@ export { default as Mail } from 'lucide-react/dist/esm/icons/mail.mjs';
 export { default as Menu } from 'lucide-react/dist/esm/icons/menu.mjs';
 export { default as Moon } from 'lucide-react/dist/esm/icons/moon.mjs';
 export { default as Plus } from 'lucide-react/dist/esm/icons/plus.mjs';
+export { default as RefreshCw } from 'lucide-react/dist/esm/icons/refresh-cw.mjs';
 export { default as RotateCcw } from 'lucide-react/dist/esm/icons/rotate-ccw.mjs';
 export { default as Ruler } from 'lucide-react/dist/esm/icons/ruler.mjs';
 export { default as Salad } from 'lucide-react/dist/esm/icons/salad.mjs';

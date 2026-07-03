@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: fitcore-backend
+    runtime: docker
+    plan: free
+    dockerContext: ./gym-backend
+    dockerfilePath: ./gym-backend/Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION_MS
+        value: 86400000
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://your-vercel-app.vercel.app,http://localhost:5173
+      - key: JPA_DDL_AUTO
+        value: update
+      - key: JPA_SHOW_SQL
+        value: false
+      - key: JPA_FORMAT_SQL
+        value: false
+      - key: SQL_INIT_MODE
+        value: always
+      - key: AWS_S3_ENABLED
+        value: false
