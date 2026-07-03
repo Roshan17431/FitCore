@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -18,9 +18,11 @@ import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
+import StateBlock from '../components/common/StateBlock';
 import FormField from '../components/forms/FormField';
 import DataTable from '../components/tables/DataTable';
-import { progressService } from '../services/mockApi';
+import { AuthContext } from '../context/auth-context';
+import { formatApiError, progressService } from '../services/api';
 import { calculateBmi } from '../utils/calculations';
 
 const tabs = [
@@ -31,13 +33,18 @@ const tabs = [
 ];
 
 const Progress = ({ section = 'weight' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [weight, setWeight] = useState('');
   const [weightHistory, setWeightHistory] = useState([]);
-  const [bmiInput, setBmiInput] = useState({ height: 178, weight: 79.8 });
+  const [bmiInput, setBmiInput] = useState({ height: '', weight: '' });
 
-  useEffect(() => {
-    progressService.getProgress().then((progress) => {
+  const loadProgress = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const progress = await progressService.getProgress(user.id);
       setData(progress);
       setWeightHistory(
         progress.weightProgress.map((item, index) => ({
@@ -47,9 +54,20 @@ const Progress = ({ section = 'weight' }) => {
           bodyFat: `${item.bodyFat}%`,
         })),
       );
-    });
-  }, []);
+      const latest = progress.weightProgress.at(-1);
+      if (latest?.weight) {
+        setBmiInput((current) => ({ ...current, weight: latest.weight }));
+      }
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load progress.'));
+    }
+  }, [user?.id]);
 
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
+
+  if (error) return <StateBlock message={error} onAction={loadProgress} />;
   if (!data) return <LoadingSpinner label="Loading progress" />;
 
   const bmi = calculateBmi(bmiInput.height, bmiInput.weight);
@@ -61,14 +79,17 @@ const Progress = ({ section = 'weight' }) => {
     { label: 'Body Fat %', value: `${data.measurements.bodyFat}%` },
   ];
 
-  const addWeight = (event) => {
+  const addWeight = async (event) => {
     event.preventDefault();
-    if (!weight) return;
-    setWeightHistory((current) => [
-      { id: Date.now(), date: 'Today', weight: `${weight} kg`, bodyFat: `${data.measurements.bodyFat}%` },
-      ...current,
-    ]);
-    setWeight('');
+    if (!weight || !user?.id) return;
+    setError('');
+    try {
+      await progressService.addWeight(user.id, Number(weight));
+      setWeight('');
+      await loadProgress();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to add weight.'));
+    }
   };
 
   return (
@@ -98,7 +119,7 @@ const Progress = ({ section = 'weight' }) => {
             </form>
             <div className="mt-6 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Latest Weight</p>
-              <p className="mt-1 text-3xl font-bold text-slate-950 dark:text-white">{data.weightProgress.at(-1).weight} kg</p>
+              <p className="mt-1 text-3xl font-bold text-slate-950 dark:text-white">{data.weightProgress.at(-1)?.weight || '--'} kg</p>
             </div>
           </Card>
 

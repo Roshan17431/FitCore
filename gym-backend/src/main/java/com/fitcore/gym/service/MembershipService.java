@@ -52,12 +52,20 @@ public class MembershipService {
     public List<ActiveMembershipDto> getUserMemberships(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        return activeMembershipRepository.findByUser(user).stream()
+        return activeMembershipRepository.findByUserOrderByStartDateDesc(user).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
-    private MembershipPlanDto mapToDto(MembershipPlan plan) {
+    public ActiveMembershipDto getCurrentMembership(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return activeMembershipRepository.findFirstByUserOrderByStartDateDesc(user)
+                .map(this::mapToDto)
+                .orElse(null);
+    }
+
+    public MembershipPlanDto mapToDto(MembershipPlan plan) {
         return MembershipPlanDto.builder()
                 .id(plan.getId())
                 .name(plan.getName())
@@ -68,7 +76,7 @@ public class MembershipService {
                 .build();
     }
 
-    private ActiveMembershipDto mapToDto(ActiveMembership membership) {
+    public ActiveMembershipDto mapToDto(ActiveMembership membership) {
         return ActiveMembershipDto.builder()
                 .id(membership.getId())
                 .userId(membership.getUser().getId())

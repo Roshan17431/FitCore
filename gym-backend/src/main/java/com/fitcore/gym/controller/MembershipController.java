@@ -63,4 +63,13 @@ public class MembershipController {
     public ResponseEntity<List<ActiveMembershipDto>> getUserMemberships(@PathVariable UUID userId) {
         return ResponseEntity.ok(membershipService.getUserMemberships(userId));
     }
+
+    @GetMapping("/user/{userId}/active")
+    public ResponseEntity<ActiveMembershipDto> getCurrentMembership(@PathVariable UUID userId) {
+        ActiveMembershipDto membership = membershipService.getCurrentMembership(userId);
+        if (membership == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(membership);
+    }
 }

@@ -11,4 +11,5 @@ import java.util.List;
 @Repository
 public interface FoodLogRepository extends JpaRepository<FoodLog, Long> {
     List<FoodLog> findByUserAndLogDateOrderByLogTimeDesc(User user, LocalDate logDate);
+    List<FoodLog> findByUserAndLogDateBetweenOrderByLogDateDescLogTimeDesc(User user, LocalDate start, LocalDate end);
 }

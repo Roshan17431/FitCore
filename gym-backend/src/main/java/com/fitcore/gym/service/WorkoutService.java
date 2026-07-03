@@ -3,14 +3,17 @@ package com.fitcore.gym.service;
 import com.fitcore.gym.dto.workout.ExerciseDto;
 import com.fitcore.gym.dto.workout.WorkoutExerciseLogDto;
 import com.fitcore.gym.dto.workout.WorkoutLogDto;
+import com.fitcore.gym.dto.workout.WorkoutPlanDto;
 import com.fitcore.gym.entity.Exercise;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.entity.WorkoutExerciseLog;
 import com.fitcore.gym.entity.WorkoutLog;
+import com.fitcore.gym.entity.WorkoutPlan;
 import com.fitcore.gym.repository.ExerciseRepository;
 import com.fitcore.gym.repository.UserRepository;
 import com.fitcore.gym.repository.WorkoutExerciseLogRepository;
 import com.fitcore.gym.repository.WorkoutLogRepository;
+import com.fitcore.gym.repository.WorkoutPlanRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -27,9 +30,16 @@ public class WorkoutService {
     private final WorkoutExerciseLogRepository workoutExerciseLogRepository;
     private final ExerciseRepository exerciseRepository;
     private final UserRepository userRepository;
+    private final WorkoutPlanRepository workoutPlanRepository;
 
     public List<ExerciseDto> getAllExercises() {
         return exerciseRepository.findAll().stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<WorkoutPlanDto> getWorkoutPlans() {
+        return workoutPlanRepository.findAll().stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
@@ -112,6 +122,16 @@ public class WorkoutService {
                 .setsCompleted(exLog.getSetsCompleted())
                 .repsCompleted(exLog.getRepsCompleted())
                 .weightUsed(exLog.getWeightUsed())
+                .build();
+    }
+
+    private WorkoutPlanDto mapToDto(WorkoutPlan plan) {
+        return WorkoutPlanDto.builder()
+                .id(plan.getId())
+                .level(plan.getLevel())
+                .duration(plan.getDuration())
+                .schedule(plan.getSchedule())
+                .exercises(plan.getExercises())
                 .build();
     }
 }

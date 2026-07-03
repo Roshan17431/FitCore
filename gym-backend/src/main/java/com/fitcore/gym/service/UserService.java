@@ -27,6 +27,7 @@ public class UserService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .fitnessGoal(user.getFitnessGoal())
+                .enabled(user.isEnabled())
                 .build();
     }
 }

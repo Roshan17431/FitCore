@@ -53,3 +53,6 @@ gym-frontend/.env.*
 !.env.example
 !gym-backend/.env.example
 !gym-frontend/.env.example
+gym-backend/.env.example
+gym-frontend/.env.example
+gym-backend/.env.example

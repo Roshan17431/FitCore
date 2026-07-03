@@ -54,22 +54,25 @@ public class TrainerService {
         User member = userRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Member not found"));
 
-        return trainerSessionRepository.findByMember(member).stream()
+        return trainerSessionRepository.findByMemberOrderBySessionDateAscStartTimeAsc(member).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
-    private TrainerProfileDto mapToDto(TrainerProfile profile) {
+    public TrainerProfileDto mapToDto(TrainerProfile profile) {
         return TrainerProfileDto.builder()
                 .id(profile.getId())
                 .user(userService.mapToDto(profile.getUser()))
                 .specialization(profile.getSpecialization())
                 .experienceYears(profile.getExperienceYears())
                 .bio(profile.getBio())
+                .photoUrl(profile.getPhotoUrl())
+                .certifications(profile.getCertifications())
+                .availableSlots(profile.getAvailableSlots())
                 .build();
     }
 
-    private TrainerSessionDto mapToDto(TrainerSession session) {
+    public TrainerSessionDto mapToDto(TrainerSession session) {
         return TrainerSessionDto.builder()
                 .id(session.getId())
                 .member(userService.mapToDto(session.getMember()))

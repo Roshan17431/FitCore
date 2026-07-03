@@ -2,6 +2,7 @@ package com.fitcore.gym.controller;
 
 import com.fitcore.gym.dto.workout.ExerciseDto;
 import com.fitcore.gym.dto.workout.WorkoutLogDto;
+import com.fitcore.gym.dto.workout.WorkoutPlanDto;
 import com.fitcore.gym.service.WorkoutService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +37,11 @@ public class WorkoutController {
     @GetMapping("/exercises")
     public ResponseEntity<List<ExerciseDto>> getAllExercises() {
         return ResponseEntity.ok(workoutService.getAllExercises());
+    }
+
+    @GetMapping("/plans")
+    public ResponseEntity<List<WorkoutPlanDto>> getWorkoutPlans() {
+        return ResponseEntity.ok(workoutService.getWorkoutPlans());
     }
 
     @Operation(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { CalendarPlus, History, IdCard, UserRoundCheck, UsersRound } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -6,10 +6,12 @@ import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
+import StateBlock from '../components/common/StateBlock';
 import Toast from '../components/common/Toast';
 import FormField from '../components/forms/FormField';
 import DataTable from '../components/tables/DataTable';
-import { trainerService } from '../services/mockApi';
+import { AuthContext } from '../context/auth-context';
+import { formatApiError, trainerService } from '../services/api';
 import { formatDate } from '../utils/formatters';
 
 const tabs = [
@@ -26,15 +28,31 @@ const historyColumns = [
 ];
 
 const Trainers = ({ section = 'list' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [toast, setToast] = useState('');
-  const [booking, setBooking] = useState({ trainerId: '1', date: '2026-07-01', time: '07:30' });
+  const [booking, setBooking] = useState({ trainerId: '', date: new Date().toISOString().slice(0, 10), time: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadTrainers = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const [trainers, sessions] = await Promise.all([
+        trainerService.getTrainers(),
+        trainerService.getSessions(user.id),
+      ]);
+      setData({ trainers, ...sessions });
+      setBooking((current) => ({ ...current, trainerId: current.trainerId || String(trainers[0]?.id || '') }));
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load trainers.'));
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    Promise.all([trainerService.getTrainers(), trainerService.getSessions()]).then(([trainers, sessions]) =>
-      setData({ trainers, ...sessions }),
-    );
-  }, []);
+    loadTrainers();
+  }, [loadTrainers]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -47,6 +65,32 @@ const Trainers = ({ section = 'list' }) => {
     return data.trainers.find((trainer) => String(trainer.id) === booking.trainerId) || data.trainers[0];
   }, [booking.trainerId, data]);
 
+  const submitBooking = async (event) => {
+    event.preventDefault();
+    if (!user?.id || !booking.trainerId || !booking.date || !booking.time) return;
+    const [hours, minutes] = booking.time.split(':').map(Number);
+    const endHour = String((hours + 1) % 24).padStart(2, '0');
+    const endTime = `${endHour}:${String(minutes || 0).padStart(2, '0')}`;
+    setSubmitting(true);
+    setError('');
+    try {
+      await trainerService.bookSession(user.id, booking.trainerId, {
+        member: { id: user.id },
+        trainer: { id: Number(booking.trainerId) },
+        sessionDate: booking.date,
+        startTime: booking.time,
+        endTime,
+      });
+      setToast(`Session booked with ${selectedTrainer?.name || 'trainer'}`);
+      await loadTrainers();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to book trainer session.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (error) return <StateBlock message={error} onAction={loadTrainers} />;
   if (!data) return <LoadingSpinner label="Loading trainers" />;
 
   return (
@@ -115,16 +159,13 @@ const Trainers = ({ section = 'list' }) => {
         </div>
       ) : null}
 
-      {section === 'booking' ? (
+      {section === 'booking' && selectedTrainer ? (
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <h2 className="text-lg font-bold text-slate-950 dark:text-white">Session Booking</h2>
             <form
               className="mt-4 space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setToast(`Session booked with ${selectedTrainer.name}`);
-              }}
+              onSubmit={submitBooking}
             >
               <FormField
                 label="Select Trainer"
@@ -147,7 +188,7 @@ const Trainers = ({ section = 'list' }) => {
                 type="time"
                 value={booking.time}
               />
-              <Button icon={UserRoundCheck} type="submit">Book Session</Button>
+              <Button icon={UserRoundCheck} isLoading={submitting} type="submit">Book Session</Button>
             </form>
           </Card>
 
@@ -162,6 +203,10 @@ const Trainers = ({ section = 'list' }) => {
             </div>
           </Card>
         </div>
+      ) : null}
+
+      {section === 'booking' && !selectedTrainer ? (
+        <StateBlock title="No trainers available" message="Trainer profiles will appear after they are created by an administrator." />
       ) : null}
 
       {section === 'history' ? <DataTable columns={historyColumns} data={data.sessionHistory} /> : null}

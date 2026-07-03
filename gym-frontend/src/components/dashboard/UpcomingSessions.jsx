@@ -10,7 +10,7 @@ const UpcomingSessions = ({ sessions }) => (
       <CalendarClock className="h-5 w-5 text-sky-500" />
     </div>
     <div className="space-y-3">
-      {sessions.map((session) => (
+      {sessions.length ? sessions.map((session) => (
         <div
           className="rounded-lg border border-slate-200 p-3 dark:border-slate-800"
           key={session.id}
@@ -24,10 +24,9 @@ const UpcomingSessions = ({ sessions }) => (
           </div>
           <p className="mt-3 text-sm font-medium text-slate-600 dark:text-slate-300">{formatDate(session.date)}</p>
         </div>
-      ))}
+      )) : <p className="text-sm text-slate-500 dark:text-slate-400">No upcoming sessions found.</p>}
     </div>
   </Card>
 );
 
 export default UpcomingSessions;
-

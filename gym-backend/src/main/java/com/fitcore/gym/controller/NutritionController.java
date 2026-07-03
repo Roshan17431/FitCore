@@ -1,7 +1,9 @@
 package com.fitcore.gym.controller;
 
 import com.fitcore.gym.dto.nutrition.FoodLogDto;
+import com.fitcore.gym.dto.nutrition.NutritionDashboardDto;
 import com.fitcore.gym.dto.nutrition.NutritionGoalDto;
+import com.fitcore.gym.dto.nutrition.NutritionPlanDto;
 import com.fitcore.gym.service.NutritionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -27,6 +29,16 @@ import jakarta.validation.Valid;
 public class NutritionController {
 
     private final NutritionService nutritionService;
+
+    @GetMapping("/dashboard/{userId}")
+    public ResponseEntity<NutritionDashboardDto> getDashboard(@PathVariable UUID userId) {
+        return ResponseEntity.ok(nutritionService.getDashboard(userId));
+    }
+
+    @GetMapping("/plans")
+    public ResponseEntity<List<NutritionPlanDto>> getPlans() {
+        return ResponseEntity.ok(nutritionService.getNutritionPlans());
+    }
 
     @Operation(
             summary = "Set nutrition goal",

@@ -34,6 +34,8 @@ public class AuthService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.MEMBER)
+                .fitnessGoal(request.getFitnessGoal())
+                .enabled(true)
                 .build();
 
         userRepository.save(user);
@@ -61,5 +63,12 @@ public class AuthService {
                 .token(jwtToken)
                 .user(userService.mapToDto(user))
                 .build();
+    }
+
+    public void requestPasswordReset(String email) {
+        if (email == null || email.isBlank()) {
+            return;
+        }
+        userRepository.existsByEmail(email.trim().toLowerCase());
     }
 }

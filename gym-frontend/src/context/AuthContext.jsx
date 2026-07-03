@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from './auth-context';
-import { mockAuthService } from '../services/mockApi';
+import { authService, formatApiError } from '../services/api';
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
@@ -44,40 +44,40 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, rememberMe = true) => {
     try {
-      const { token, user: userData } = await mockAuthService.login(email, password);
+      const { token, user: userData } = await authService.login(email, password);
       persistSession({ token, user: userData }, rememberMe);
       setUser(userData);
       return { success: true };
     } catch (error) {
       return { 
         success: false, 
-        error: error.message || 'Login failed. Please check your credentials.',
+        error: formatApiError(error, 'Login failed. Please check your credentials.'),
       };
     }
   };
 
   const register = async (userData) => {
     try {
-      const { token, user: newUserData } = await mockAuthService.register(userData);
+      const { token, user: newUserData } = await authService.register(userData);
       persistSession({ token, user: newUserData }, true);
       setUser(newUserData);
       return { success: true };
     } catch (error) {
       return { 
         success: false, 
-        error: error.message || 'Registration failed. Please try again.',
+        error: formatApiError(error, 'Registration failed. Please try again.'),
       };
     }
   };
 
   const resetPassword = async (email) => {
     try {
-      await mockAuthService.resetPassword(email);
+      await authService.resetPassword(email);
       return { success: true };
     } catch (error) {
       return {
         success: false,
-        error: error.message || 'Reset request failed.',
+        error: formatApiError(error, 'Reset request failed.'),
       };
     }
   };

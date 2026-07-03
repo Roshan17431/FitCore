@@ -56,6 +56,11 @@ public class TrackingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        var openAttendance = attendanceRepository.findFirstByUserAndCheckOutTimeIsNullOrderByCheckInTimeDesc(user);
+        if (openAttendance.isPresent()) {
+            return mapToDto(openAttendance.get());
+        }
+
         Attendance attendance = Attendance.builder()
                 .user(user)
                 .checkInDate(LocalDate.now())
@@ -83,7 +88,7 @@ public class TrackingService {
                 .collect(Collectors.toList());
     }
 
-    private ProgressMetricDto mapToDto(ProgressMetric metric) {
+    public ProgressMetricDto mapToDto(ProgressMetric metric) {
         return ProgressMetricDto.builder()
                 .id(metric.getId())
                 .userId(metric.getUser().getId())
@@ -97,7 +102,7 @@ public class TrackingService {
                 .build();
     }
 
-    private AttendanceDto mapToDto(Attendance attendance) {
+    public AttendanceDto mapToDto(Attendance attendance) {
         return AttendanceDto.builder()
                 .id(attendance.getId())
                 .userId(attendance.getUser().getId())

@@ -1,0 +1,51 @@
+package com.fitcore.gym.entity;
+
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Entity
+@Table(name = "nutrition_plans")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class NutritionPlan {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String category;
+
+    @Column(nullable = false)
+    private Integer calories;
+
+    @Column(nullable = false)
+    private Integer protein;
+
+    @Column(nullable = false)
+    private Integer carbs;
+
+    @Column(nullable = false)
+    private Integer fats;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "nutrition_plan_meals", joinColumns = @JoinColumn(name = "plan_id"))
+    @Column(name = "meal")
+    private List<String> meals;
+}

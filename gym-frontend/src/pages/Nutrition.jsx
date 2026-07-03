@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Apple, Beef, Flame, Plus, Salad, Search, Target } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -7,9 +7,11 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
 import SearchBar from '../components/common/SearchBar';
+import StateBlock from '../components/common/StateBlock';
 import StatCard from '../components/common/StatCard';
 import FormField from '../components/forms/FormField';
-import { nutritionService } from '../services/mockApi';
+import { AuthContext } from '../context/auth-context';
+import { formatApiError, nutritionService } from '../services/api';
 import { percent } from '../utils/formatters';
 
 const tabs = [
@@ -22,38 +24,60 @@ const tabs = [
 const nutritionIcons = [Flame, Beef, Apple, Salad];
 
 const Nutrition = ({ section = 'dashboard' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
-  const [foodLogs, setFoodLogs] = useState([
-    { id: 1, name: 'Oats and eggs', calories: 520, protein: 32, carbs: 54, fat: 18 },
-    { id: 2, name: 'Chicken rice bowl', calories: 680, protein: 52, carbs: 76, fat: 14 },
-  ]);
+  const [foodLogs, setFoodLogs] = useState([]);
   const [form, setForm] = useState({ name: '', calories: '', protein: '', carbs: '', fat: '' });
+  const [saving, setSaving] = useState(false);
+
+  const loadNutrition = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const [dashboard, dietPlans, logs] = await Promise.all([
+        nutritionService.getDashboard(user.id),
+        nutritionService.getDietPlans(),
+        nutritionService.getFoodLogs(user.id),
+      ]);
+      setData({ ...dashboard, dietPlans });
+      setFoodLogs(logs);
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load nutrition.'));
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    Promise.all([
-      nutritionService.getDashboard(),
-      nutritionService.getDietPlans(),
-      nutritionService.getFoodSuggestions(),
-    ]).then(([dashboard, dietPlans, suggestions]) => setData({ ...dashboard, dietPlans, suggestions }));
-  }, []);
+    loadNutrition();
+  }, [loadNutrition]);
 
   const filteredFoods = useMemo(() => {
-    if (!data) return [];
+    if (!foodLogs.length) return [];
     const normalizedQuery = query.trim().toLowerCase();
-    return data.suggestions.filter((food) =>
-      [food.name, food.serving].some((value) => value.toLowerCase().includes(normalizedQuery)),
+    return foodLogs.filter((food) =>
+      [food.name, food.serving].some((value) => String(value).toLowerCase().includes(normalizedQuery)),
     );
-  }, [data, query]);
+  }, [foodLogs, query]);
 
-  const addFood = (food) => {
-    setFoodLogs((current) => [{ ...food, id: Date.now() }, ...current]);
+  const addFood = async (food) => {
+    if (!user?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      await nutritionService.logFood(user.id, food);
+      await loadNutrition();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to log food.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const submitFood = (event) => {
+  const submitFood = async (event) => {
     event.preventDefault();
     if (!form.name || !form.calories) return;
-    addFood({
+    await addFood({
       name: form.name,
       calories: Number(form.calories),
       protein: Number(form.protein) || 0,
@@ -64,6 +88,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
     setForm({ name: '', calories: '', protein: '', carbs: '', fat: '' });
   };
 
+  if (error) return <StateBlock message={error} onAction={loadNutrition} />;
   if (!data) return <LoadingSpinner label="Loading nutrition" />;
 
   const consumedCalories = foodLogs.reduce((total, food) => total + Number(food.calories), 0);
@@ -85,7 +110,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {data.nutritionCards.map((card, index) => (
             <StatCard
-              detail={`Goal: ${card.target}`}
+              detail={card.detail}
               icon={nutritionIcons[index]}
               key={card.title}
               title={card.title}
@@ -155,7 +180,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
                   value={form[field]}
                 />
               ))}
-              <Button className="sm:col-span-2" icon={Plus} type="submit">
+              <Button className="sm:col-span-2" icon={Plus} isLoading={saving} type="submit">
                 Add Food
               </Button>
             </form>
@@ -165,14 +190,14 @@ const Nutrition = ({ section = 'dashboard' }) => {
             <Card>
               <h2 className="text-lg font-bold text-slate-950 dark:text-white">Nutrition Facts</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {filteredFoods.map((food) => (
+                {filteredFoods.length ? filteredFoods.map((food) => (
                   <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800" key={food.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-bold text-slate-950 dark:text-white">{food.name}</p>
                         <p className="text-sm text-slate-500 dark:text-slate-400">{food.serving}</p>
                       </div>
-                      <Button onClick={() => addFood(food)} size="sm" variant="outline">Log</Button>
+                      <Button isLoading={saving} onClick={() => addFood(food)} size="sm" variant="outline">Log</Button>
                     </div>
                     <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs font-semibold">
                       <span>{food.calories} kcal</span>
@@ -181,14 +206,16 @@ const Nutrition = ({ section = 'dashboard' }) => {
                       <span>{food.fat}g F</span>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No matching food logs found.</p>
+                )}
               </div>
             </Card>
 
             <Card>
               <h2 className="text-lg font-bold text-slate-950 dark:text-white">Food Log</h2>
               <div className="mt-4 space-y-3">
-                {foodLogs.map((food) => (
+                {foodLogs.length ? foodLogs.map((food) => (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70" key={food.id}>
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-white">{food.name}</p>
@@ -198,7 +225,9 @@ const Nutrition = ({ section = 'dashboard' }) => {
                     </div>
                     <Badge tone="amber">{food.calories} kcal</Badge>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No foods logged today.</p>
+                )}
               </div>
             </Card>
           </div>

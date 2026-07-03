@@ -30,4 +30,6 @@ public class RegisterRequest {
              message = "Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character")
     @Schema(format = "password", example = "Secure@123")
     private String password;
+
+    private String fitnessGoal;
 }

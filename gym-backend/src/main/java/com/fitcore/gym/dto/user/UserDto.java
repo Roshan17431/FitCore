@@ -32,4 +32,6 @@ public class UserDto {
     private Role role;
     
     private String fitnessGoal;
+
+    private Boolean enabled;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -7,8 +7,10 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
 import SearchBar from '../components/common/SearchBar';
+import StateBlock from '../components/common/StateBlock';
 import DataTable from '../components/tables/DataTable';
-import { workoutService } from '../services/mockApi';
+import { AuthContext } from '../context/auth-context';
+import { formatApiError, workoutService } from '../services/api';
 import { getCompletionPercentage } from '../utils/calculations';
 import { formatDate } from '../utils/formatters';
 
@@ -26,21 +28,33 @@ const historyColumns = [
 ];
 
 const Workouts = ({ section = 'library' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [tracker, setTracker] = useState([]);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      workoutService.getLibrary(),
-      workoutService.getPlans(),
-      workoutService.getDailyTracker(),
-      workoutService.getHistory(),
-    ]).then(([library, plans, dailyTracker, history]) => {
+  const loadWorkouts = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const [library, plans, dailyTracker, history] = await Promise.all([
+        workoutService.getLibrary(),
+        workoutService.getPlans(),
+        workoutService.getDailyTracker(),
+        workoutService.getHistory(user.id),
+      ]);
       setData({ library, plans, history });
       setTracker(dailyTracker);
-    });
-  }, []);
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load workouts.'));
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadWorkouts();
+  }, [loadWorkouts]);
 
   const filteredLibrary = useMemo(() => {
     if (!data) return [];
@@ -67,6 +81,31 @@ const Workouts = ({ section = 'library' }) => {
     );
   };
 
+  const saveTracker = async () => {
+    const completed = tracker.filter((exercise) => exercise.complete);
+    if (!completed.length || !user?.id) return;
+    setSaving(true);
+    setError('');
+    try {
+      await workoutService.logWorkout(user.id, {
+        userId: user.id,
+        durationMinutes: completed.length * 12,
+        notes: 'Daily workout tracker session',
+        exercises: completed.map((exercise) => ({
+          exercise: { id: exercise.id },
+          setsCompleted: Number(exercise.sets) || 0,
+          repsCompleted: String(exercise.reps || exercise.targetReps || ''),
+        })),
+      });
+      await loadWorkouts();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to save workout tracker.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (error) return <StateBlock message={error} onAction={loadWorkouts} />;
   if (!data) return <LoadingSpinner label="Loading workouts" />;
 
   return (
@@ -166,7 +205,7 @@ const Workouts = ({ section = 'library' }) => {
           </Card>
 
           <div className="space-y-3">
-            {tracker.map((exercise) => (
+            {tracker.length ? tracker.map((exercise) => (
               <Card className="grid gap-4 sm:grid-cols-[1fr_auto]" key={exercise.id}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -207,7 +246,12 @@ const Workouts = ({ section = 'library' }) => {
                   {exercise.complete ? 'Mark Pending' : 'Mark Complete'}
                 </Button>
               </Card>
-            ))}
+            )) : <StateBlock title="No exercises available" message="Workout exercises will appear here after they are added in the backend." />}
+            <div className="flex justify-end">
+              <Button disabled={!tracker.some((exercise) => exercise.complete)} isLoading={saving} onClick={saveTracker}>
+                Save Workout
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}

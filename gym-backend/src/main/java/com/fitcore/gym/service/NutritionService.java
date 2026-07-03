@@ -1,17 +1,24 @@
 package com.fitcore.gym.service;
 
+import com.fitcore.gym.dto.dashboard.StatCardDto;
+import com.fitcore.gym.dto.nutrition.CalorieTrackerDto;
 import com.fitcore.gym.dto.nutrition.FoodLogDto;
+import com.fitcore.gym.dto.nutrition.NutritionDashboardDto;
 import com.fitcore.gym.dto.nutrition.NutritionGoalDto;
+import com.fitcore.gym.dto.nutrition.NutritionPlanDto;
 import com.fitcore.gym.entity.FoodLog;
 import com.fitcore.gym.entity.NutritionGoal;
+import com.fitcore.gym.entity.NutritionPlan;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.repository.FoodLogRepository;
 import com.fitcore.gym.repository.NutritionGoalRepository;
+import com.fitcore.gym.repository.NutritionPlanRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -22,7 +29,43 @@ public class NutritionService {
 
     private final NutritionGoalRepository nutritionGoalRepository;
     private final FoodLogRepository foodLogRepository;
+    private final NutritionPlanRepository nutritionPlanRepository;
     private final UserRepository userRepository;
+
+    public NutritionDashboardDto getDashboard(UUID userId) {
+        NutritionGoalDto goal = getGoal(userId);
+        List<FoodLogDto> logs = getDailyLogs(userId, LocalDate.now());
+
+        int calories = logs.stream().mapToInt(log -> valueOrZero(log.getCalories())).sum();
+        int protein = logs.stream().mapToInt(log -> valueOrZero(log.getProtein())).sum();
+        int carbs = logs.stream().mapToInt(log -> valueOrZero(log.getCarbs())).sum();
+        int fat = logs.stream().mapToInt(log -> valueOrZero(log.getFat())).sum();
+
+        int calorieGoal = goal != null && goal.getTargetCalories() != null ? goal.getTargetCalories() : 0;
+        int proteinGoal = goal != null && goal.getTargetProtein() != null ? goal.getTargetProtein() : 0;
+        int carbsGoal = goal != null && goal.getTargetCarbs() != null ? goal.getTargetCarbs() : 0;
+        int fatGoal = goal != null && goal.getTargetFat() != null ? goal.getTargetFat() : 0;
+
+        return NutritionDashboardDto.builder()
+                .nutritionCards(List.of(
+                        card("Daily Calories", calories + " kcal", "Goal: " + calorieGoal + " kcal", "emerald"),
+                        card("Protein Intake", protein + " g", "Goal: " + proteinGoal + " g", "sky"),
+                        card("Carbs Intake", carbs + " g", "Goal: " + carbsGoal + " g", "amber"),
+                        card("Fat Intake", fat + " g", "Goal: " + fatGoal + " g", "rose")
+                ))
+                .calorieTracker(CalorieTrackerDto.builder()
+                        .dailyGoal(calorieGoal)
+                        .consumedCalories(calories)
+                        .remainingCalories(Math.max(calorieGoal - calories, 0))
+                        .build())
+                .build();
+    }
+
+    public List<NutritionPlanDto> getNutritionPlans() {
+        return nutritionPlanRepository.findAll().stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
 
     public NutritionGoalDto setGoal(UUID userId, NutritionGoalDto request) {
         User user = userRepository.findById(userId)
@@ -60,7 +103,7 @@ public class NutritionService {
                 .carbs(request.getCarbs())
                 .fat(request.getFat())
                 .logDate(request.getLogDate() != null ? request.getLogDate() : LocalDate.now())
-                .logTime(request.getLogTime())
+                .logTime(request.getLogTime() != null ? request.getLogTime() : LocalTime.now())
                 .build();
 
         return mapToDto(foodLogRepository.save(log));
@@ -99,5 +142,30 @@ public class NutritionService {
                 .logDate(log.getLogDate())
                 .logTime(log.getLogTime())
                 .build();
+    }
+
+    private NutritionPlanDto mapToDto(NutritionPlan plan) {
+        return NutritionPlanDto.builder()
+                .id(plan.getId())
+                .category(plan.getCategory())
+                .calories(plan.getCalories())
+                .protein(plan.getProtein())
+                .carbs(plan.getCarbs())
+                .fats(plan.getFats())
+                .meals(plan.getMeals())
+                .build();
+    }
+
+    private StatCardDto card(String title, String value, String detail, String tone) {
+        return StatCardDto.builder()
+                .title(title)
+                .value(value)
+                .detail(detail)
+                .tone(tone)
+                .build();
+    }
+
+    private int valueOrZero(Integer value) {
+        return value == null ? 0 : value;
     }
 }

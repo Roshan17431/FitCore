@@ -1,0 +1,11 @@
+export { Area } from 'recharts/es6/cartesian/Area.js';
+export { AreaChart } from 'recharts/es6/chart/AreaChart.js';
+export { Bar } from 'recharts/es6/cartesian/Bar.js';
+export { BarChart } from 'recharts/es6/chart/BarChart.js';
+export { CartesianGrid } from 'recharts/es6/cartesian/CartesianGrid.js';
+export { Line } from 'recharts/es6/cartesian/Line.js';
+export { LineChart } from 'recharts/es6/chart/LineChart.js';
+export { ResponsiveContainer } from 'recharts/es6/component/ResponsiveContainer.js';
+export { Tooltip } from 'recharts/es6/component/Tooltip.js';
+export { XAxis } from 'recharts/es6/cartesian/XAxis.js';
+export { YAxis } from 'recharts/es6/cartesian/YAxis.js';

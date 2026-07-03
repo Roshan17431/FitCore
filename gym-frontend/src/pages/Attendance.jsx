@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -18,8 +18,10 @@ import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
+import StateBlock from '../components/common/StateBlock';
 import DataTable from '../components/tables/DataTable';
-import { attendanceService } from '../services/mockApi';
+import { AuthContext } from '../context/auth-context';
+import { attendanceService, formatApiError } from '../services/api';
 import { formatDate } from '../utils/formatters';
 
 const tabs = [
@@ -35,25 +37,55 @@ const historyColumns = [
 ];
 
 const Attendance = ({ section = 'check-in' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
-  const [session, setSession] = useState({ checkedIn: false, checkInTime: '', checkOutTime: '' });
+  const [error, setError] = useState('');
+  const [session, setSession] = useState({ checkedIn: false, checkInTime: '', checkOutTime: '', raw: null });
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadAttendance = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const attendance = await attendanceService.getAttendance(user.id);
+      setData(attendance);
+      setSession(attendance.currentSession || { checkedIn: false, checkInTime: '', checkOutTime: '', raw: null });
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load attendance.'));
+    }
+  }, [user?.id]);
 
   useEffect(() => {
-    attendanceService.getAttendance().then(setData);
-  }, []);
+    loadAttendance();
+  }, [loadAttendance]);
 
+  if (error) return <StateBlock message={error} onAction={loadAttendance} />;
   if (!data) return <LoadingSpinner label="Loading attendance" />;
 
-  const handleCheckIn = () => {
-    setSession({ checkedIn: true, checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), checkOutTime: '' });
+  const handleCheckIn = async () => {
+    if (!user?.id) return;
+    setSubmitting(true);
+    try {
+      setSession(await attendanceService.checkIn(user.id));
+      await loadAttendance();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to check in.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleCheckOut = () => {
-    setSession((current) => ({
-      ...current,
-      checkedIn: false,
-      checkOutTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }));
+  const handleCheckOut = async () => {
+    if (!session.raw?.id) return;
+    setSubmitting(true);
+    try {
+      setSession(await attendanceService.checkOut(session.raw.id));
+      await loadAttendance();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to check out.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -80,10 +112,10 @@ const Attendance = ({ section = 'check-in' }) => {
               <Clock className="h-6 w-6 text-emerald-500" />
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <Button disabled={session.checkedIn} icon={LogIn} onClick={handleCheckIn}>
+              <Button disabled={session.checkedIn || submitting} icon={LogIn} isLoading={submitting && !session.checkedIn} onClick={handleCheckIn}>
                 Check-In
               </Button>
-              <Button disabled={!session.checkedIn} icon={LogOut} onClick={handleCheckOut} variant="outline">
+              <Button disabled={!session.checkedIn || submitting} icon={LogOut} isLoading={submitting && session.checkedIn} onClick={handleCheckOut} variant="outline">
                 Check-Out
               </Button>
             </div>

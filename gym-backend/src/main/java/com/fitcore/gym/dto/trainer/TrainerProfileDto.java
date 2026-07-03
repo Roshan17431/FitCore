@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
+import java.util.List;
 
 @Data
 @Builder
@@ -27,4 +28,7 @@ public class TrainerProfileDto {
     private Integer experienceYears;
     
     private String bio;
+    private String photoUrl;
+    private List<String> certifications;
+    private List<String> availableSlots;
 }

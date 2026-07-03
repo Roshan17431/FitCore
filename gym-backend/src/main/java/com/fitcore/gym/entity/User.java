@@ -46,6 +46,10 @@ public class User implements UserDetails {
 
     private String fitnessGoal;
 
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean enabled = true;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -85,6 +89,6 @@ public class User implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled == null || enabled;
     }
 }

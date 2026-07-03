@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import { CreditCard, History, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -8,7 +8,9 @@ import PageHeader from '../components/common/PageHeader';
 import Toast from '../components/common/Toast';
 import DataTable from '../components/tables/DataTable';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { membershipService } from '../services/mockApi';
+import StateBlock from '../components/common/StateBlock';
+import { AuthContext } from '../context/auth-context';
+import { formatApiError, membershipService } from '../services/api';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 const tabs = [
@@ -25,16 +27,29 @@ const historyColumns = [
 ];
 
 const Membership = ({ section = 'plans' }) => {
+  const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
+  const loadMemberships = useCallback(async () => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      const [plans, active, history] = await Promise.all([
+        membershipService.getPlans(),
+        membershipService.getActive(user.id),
+        membershipService.getHistory(user.id),
+      ]);
+      setData({ plans, active, history });
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load memberships.'));
+    }
+  }, [user?.id]);
+
   useEffect(() => {
-    Promise.all([
-      membershipService.getPlans(),
-      membershipService.getActive(),
-      membershipService.getHistory(),
-    ]).then(([plans, active, history]) => setData({ plans, active, history }));
-  }, []);
+    loadMemberships();
+  }, [loadMemberships]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -42,6 +57,19 @@ const Membership = ({ section = 'plans' }) => {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
+  const submitPlanAction = async (plan, action) => {
+    if (!user?.id) return;
+    setError('');
+    try {
+      await membershipService.subscribe(user.id, plan.id);
+      setToast(`${plan.name} plan ${action}`);
+      await loadMemberships();
+    } catch (requestError) {
+      setError(formatApiError(requestError, `Unable to ${action} ${plan.name} plan.`));
+    }
+  };
+
+  if (error) return <StateBlock message={error} onAction={loadMemberships} />;
   if (!data) return <LoadingSpinner label="Loading memberships" />;
 
   return (
@@ -75,13 +103,13 @@ const Membership = ({ section = 'plans' }) => {
                 ))}
               </ul>
               <div className="mt-auto grid gap-2 pt-6">
-                <Button icon={CreditCard} onClick={() => setToast(`${plan.name} plan purchase started`)}>
+                <Button icon={CreditCard} onClick={() => submitPlanAction(plan, 'purchased')}>
                   Purchase Plan
                 </Button>
-                <Button icon={Sparkles} onClick={() => setToast(`${plan.name} upgrade queued`)} variant="outline">
+                <Button icon={Sparkles} onClick={() => submitPlanAction(plan, 'upgraded')} variant="outline">
                   Upgrade Plan
                 </Button>
-                <Button icon={RotateCcw} onClick={() => setToast(`${plan.name} renewal queued`)} variant="ghost">
+                <Button icon={RotateCcw} onClick={() => submitPlanAction(plan, 'renewed')} variant="ghost">
                   Renew Plan
                 </Button>
               </div>
@@ -90,7 +118,7 @@ const Membership = ({ section = 'plans' }) => {
         </div>
       ) : null}
 
-      {section === 'active' ? (
+      {section === 'active' && data.active ? (
         <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
           <Card className="min-h-72">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -99,7 +127,7 @@ const Membership = ({ section = 'plans' }) => {
                 <h2 className="mt-4 text-3xl font-bold text-slate-950 dark:text-white">{data.active.plan} Plan</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Current membership plan and lifecycle details.</p>
               </div>
-              <Button icon={RotateCcw} onClick={() => setToast('Renewal request submitted')}>
+              <Button icon={RotateCcw} onClick={() => setToast('Select a plan to renew from the plans tab')}>
                 Renew Plan
               </Button>
             </div>
@@ -121,22 +149,21 @@ const Membership = ({ section = 'plans' }) => {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Plan Usage</h2>
-            <div className="mt-6 space-y-5">
-              {['Gym floor access', 'Trainer consultation', 'Progress analytics'].map((item, index) => (
-                <div key={item}>
-                  <div className="mb-2 flex justify-between text-sm font-semibold text-slate-600 dark:text-slate-300">
-                    <span>{item}</span>
-                    <span>{[92, 68, 78][index]}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${[92, 68, 78][index]}%` }} />
-                  </div>
+            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Included Benefits</h2>
+            <div className="mt-6 space-y-3">
+              {(data.active.features || []).map((item) => (
+                <div className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-200" key={item}>
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <span>{item}</span>
                 </div>
               ))}
             </div>
           </Card>
         </div>
+      ) : null}
+
+      {section === 'active' && !data.active ? (
+        <StateBlock title="No active membership" message="Choose a membership plan to create an active subscription." />
       ) : null}
 
       {section === 'history' ? <DataTable columns={historyColumns} data={data.history} /> : null}

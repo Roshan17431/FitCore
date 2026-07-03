@@ -11,5 +11,6 @@ import java.util.List;
 @Repository
 public interface TrainerSessionRepository extends JpaRepository<TrainerSession, Long> {
     List<TrainerSession> findByMember(User member);
+    List<TrainerSession> findByMemberOrderBySessionDateAscStartTimeAsc(User member);
     List<TrainerSession> findByTrainer(TrainerProfile trainer);
 }

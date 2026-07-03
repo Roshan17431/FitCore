@@ -2,9 +2,11 @@ package com.fitcore.gym.controller;
 
 import com.fitcore.gym.dto.auth.AuthRequest;
 import com.fitcore.gym.dto.auth.AuthResponse;
+import com.fitcore.gym.dto.auth.ForgotPasswordRequest;
 import com.fitcore.gym.dto.auth.RegisterRequest;
 import com.fitcore.gym.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,12 +18,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
-import lombok.extern.slf4j.Slf4j;
-
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
-@Slf4j
 @Tag(name = "Authentication", description = "Endpoints for user registration and login")
 public class AuthController {
 
@@ -40,8 +39,6 @@ public class AuthController {
     public ResponseEntity<AuthResponse> register(
             @Valid @RequestBody RegisterRequest request
     ) {
-        log.info("Received registration request for email: {}", request.getEmail());
-        log.debug("Full registration request: {}", request);
         return ResponseEntity.ok(authService.register(request));
     }
 
@@ -59,5 +56,21 @@ public class AuthController {
             @Valid @RequestBody AuthRequest request
     ) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @Operation(
+            summary = "Request password reset",
+            description = "Accepts a password reset request without exposing account existence.",
+            responses = {
+                    @ApiResponse(responseCode = "202", description = "Reset request accepted"),
+                    @ApiResponse(responseCode = "400", description = "Validation error")
+            }
+    )
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        authService.requestPasswordReset(request.getEmail());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 }

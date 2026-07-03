@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -28,11 +28,12 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
 import SearchBar from '../components/common/SearchBar';
+import StateBlock from '../components/common/StateBlock';
 import StatCard from '../components/common/StatCard';
 import Toast from '../components/common/Toast';
 import FormField from '../components/forms/FormField';
 import DataTable from '../components/tables/DataTable';
-import { adminService } from '../services/mockApi';
+import { adminService, formatApiError } from '../services/api';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 const tabs = [
@@ -47,22 +48,32 @@ const statIcons = [UsersRound, ShieldCheck, UsersRound, CreditCard];
 
 const Admin = ({ section = 'dashboard' }) => {
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState('');
   const [userRows, setUserRows] = useState([]);
   const [trainerRows, setTrainerRows] = useState([]);
   const [planRows, setPlanRows] = useState([]);
-  const [trainerForm, setTrainerForm] = useState({ name: '', specialization: '', experience: '' });
-  const [planForm, setPlanForm] = useState({ name: '', price: '', duration: '' });
+  const [trainerForm, setTrainerForm] = useState({ name: '', email: '', password: '', specialization: '', experience: '' });
+  const [planForm, setPlanForm] = useState({ name: '', price: '', durationMonths: '', features: '' });
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    adminService.getDashboard().then((adminData) => {
+  const loadAdmin = useCallback(async () => {
+    setError('');
+    try {
+      const adminData = await adminService.getDashboard();
       setData(adminData);
       setUserRows(adminData.users);
       setTrainerRows(adminData.trainers);
       setPlanRows(adminData.membershipPlans);
-    });
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to load admin dashboard.'));
+    }
   }, []);
+
+  useEffect(() => {
+    loadAdmin();
+  }, [loadAdmin]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -80,40 +91,53 @@ const Admin = ({ section = 'dashboard' }) => {
     );
   }, [query, userRows]);
 
-  const addTrainer = (event) => {
+  const addTrainer = async (event) => {
     event.preventDefault();
-    if (!trainerForm.name || !trainerForm.specialization) return;
-    setTrainerRows((current) => [
-      {
-        id: Date.now(),
-        name: trainerForm.name,
+    if (!trainerForm.name || !trainerForm.email || !trainerForm.password || !trainerForm.specialization) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await adminService.createTrainer({
+        fullName: trainerForm.name,
+        email: trainerForm.email,
+        password: trainerForm.password,
         specialization: trainerForm.specialization,
-        experience: `${trainerForm.experience || 1} years`,
-        photo: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=800&q=80',
-      },
-      ...current,
-    ]);
-    setTrainerForm({ name: '', specialization: '', experience: '' });
-    setToast('Trainer added');
+        experienceYears: Number(trainerForm.experience) || 0,
+      });
+      setTrainerForm({ name: '', email: '', password: '', specialization: '', experience: '' });
+      setToast('Trainer added');
+      await loadAdmin();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to add trainer.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const addPlan = (event) => {
+  const addPlan = async (event) => {
     event.preventDefault();
     if (!planForm.name || !planForm.price) return;
-    setPlanRows((current) => [
-      {
-        id: Date.now(),
+    setSubmitting(true);
+    setError('');
+    try {
+      await adminService.createMembershipPlan({
         name: planForm.name,
         price: Number(planForm.price),
-        duration: planForm.duration || '1 month',
-        features: ['Gym floor access', 'Progress dashboard'],
-      },
-      ...current,
-    ]);
-    setPlanForm({ name: '', price: '', duration: '' });
-    setToast('Membership plan created');
+        durationMonths: Number(planForm.durationMonths) || 1,
+        features: planForm.features.split(',').map((feature) => feature.trim()).filter(Boolean),
+        recommended: false,
+      });
+      setPlanForm({ name: '', price: '', durationMonths: '', features: '' });
+      setToast('Membership plan created');
+      await loadAdmin();
+    } catch (requestError) {
+      setError(formatApiError(requestError, 'Unable to create membership plan.'));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
+  if (error) return <StateBlock message={error} onAction={loadAdmin} />;
   if (!data) return <LoadingSpinner label="Loading admin" />;
 
   const userColumns = [
@@ -132,7 +156,11 @@ const Admin = ({ section = 'dashboard' }) => {
           </Button>
           <Button
             icon={Trash2}
-            onClick={() => setUserRows((current) => current.filter((user) => user.id !== row.id))}
+            onClick={async () => {
+              await adminService.deleteUser(row.id);
+              setUserRows((current) => current.filter((user) => user.id !== row.id));
+              setToast(`${row.fullName} disabled`);
+            }}
             size="sm"
             variant="danger"
           />
@@ -155,7 +183,11 @@ const Admin = ({ section = 'dashboard' }) => {
           </Button>
           <Button
             icon={Trash2}
-            onClick={() => setTrainerRows((current) => current.filter((trainer) => trainer.id !== row.id))}
+            onClick={async () => {
+              await adminService.deleteTrainer(row.id);
+              setTrainerRows((current) => current.filter((trainer) => trainer.id !== row.id));
+              setToast(`${row.name} disabled`);
+            }}
             size="sm"
             variant="danger"
           />
@@ -178,7 +210,11 @@ const Admin = ({ section = 'dashboard' }) => {
           </Button>
           <Button
             icon={Trash2}
-            onClick={() => setPlanRows((current) => current.filter((plan) => plan.id !== row.id))}
+            onClick={async () => {
+              await adminService.deleteMembershipPlan(row.id);
+              setPlanRows((current) => current.filter((plan) => plan.id !== row.id));
+              setToast(`${row.name} plan deleted`);
+            }}
             size="sm"
             variant="danger"
           />
@@ -270,6 +306,20 @@ const Admin = ({ section = 'dashboard' }) => {
                 value={trainerForm.name}
               />
               <FormField
+                label="Email"
+                name="email"
+                onChange={(event) => setTrainerForm((current) => ({ ...current, email: event.target.value }))}
+                type="email"
+                value={trainerForm.email}
+              />
+              <FormField
+                label="Temporary password"
+                name="password"
+                onChange={(event) => setTrainerForm((current) => ({ ...current, password: event.target.value }))}
+                type="password"
+                value={trainerForm.password}
+              />
+              <FormField
                 label="Specialization"
                 name="specialization"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, specialization: event.target.value }))}
@@ -282,7 +332,7 @@ const Admin = ({ section = 'dashboard' }) => {
                 type="number"
                 value={trainerForm.experience}
               />
-              <Button icon={Plus} type="submit">Add Trainer</Button>
+              <Button icon={Plus} isLoading={submitting} type="submit">Add Trainer</Button>
             </form>
           </Card>
           <DataTable columns={trainerColumns} data={trainerRows} />
@@ -308,13 +358,20 @@ const Admin = ({ section = 'dashboard' }) => {
                 value={planForm.price}
               />
               <FormField
-                label="Duration"
-                name="duration"
-                onChange={(event) => setPlanForm((current) => ({ ...current, duration: event.target.value }))}
-                placeholder="3 months"
-                value={planForm.duration}
+                label="Duration months"
+                name="durationMonths"
+                onChange={(event) => setPlanForm((current) => ({ ...current, durationMonths: event.target.value }))}
+                type="number"
+                value={planForm.durationMonths}
               />
-              <Button icon={Plus} type="submit">Create Plan</Button>
+              <FormField
+                label="Features"
+                name="features"
+                onChange={(event) => setPlanForm((current) => ({ ...current, features: event.target.value }))}
+                placeholder="Gym access, Trainer consultation"
+                value={planForm.features}
+              />
+              <Button icon={Plus} isLoading={submitting} type="submit">Create Plan</Button>
             </form>
           </Card>
           <DataTable columns={planColumns} data={planRows} />
