@@ -5,6 +5,12 @@ import { authService, formatApiError } from '../services/api';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 
+const redactAuthPayload = (payload) => ({
+  ...payload,
+  password: payload?.password ? '[REDACTED]' : payload?.password,
+  confirmPassword: payload?.confirmPassword ? '[REDACTED]' : payload?.confirmPassword,
+});
+
 const readStoredSession = () => {
   const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
   const savedUser = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
@@ -44,11 +50,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password, rememberMe = true) => {
     try {
+      console.info('[FitCore Auth] login called', { email, rememberMe });
       const { token, user: userData } = await authService.login(email, password);
       persistSession({ token, user: userData }, rememberMe);
       setUser(userData);
+      console.info('[FitCore Auth] login succeeded', { userId: userData?.id, email: userData?.email });
       return { success: true };
     } catch (error) {
+      console.error('[FitCore Auth] login failed', error);
       return { 
         success: false, 
         error: formatApiError(error, 'Login failed. Please check your credentials.'),
@@ -58,11 +67,14 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
+      console.info('[FitCore Auth] register called', redactAuthPayload(userData));
       const { token, user: newUserData } = await authService.register(userData);
       persistSession({ token, user: newUserData }, true);
       setUser(newUserData);
+      console.info('[FitCore Auth] register succeeded', { userId: newUserData?.id, email: newUserData?.email });
       return { success: true };
     } catch (error) {
+      console.error('[FitCore Auth] register failed', error);
       return { 
         success: false, 
         error: formatApiError(error, 'Registration failed. Please try again.'),

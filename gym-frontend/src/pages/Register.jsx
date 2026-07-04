@@ -30,24 +30,43 @@ const Register = () => {
     event.preventDefault();
     setError('');
 
+    console.info('[FitCore Register] submit handler executed', {
+      fullName: form.fullName,
+      email: form.email,
+      fitnessGoal: form.fitnessGoal,
+      hasPassword: Boolean(form.password),
+      hasConfirmPassword: Boolean(form.confirmPassword),
+      passwordsMatch: form.password === form.confirmPassword,
+    });
+
     if (!form.fullName || !form.email || !form.password || !form.confirmPassword) {
+      console.warn('[FitCore Register] validation stopped submission: missing required fields');
       setError('All fields are required.');
       return;
     }
 
     if (form.password !== form.confirmPassword) {
+      console.warn('[FitCore Register] validation stopped submission: passwords do not match');
       setError('Passwords do not match.');
       return;
     }
 
     setIsSubmitting(true);
-    const result = await register(form);
-    setIsSubmitting(false);
+    try {
+      console.info('[FitCore Register] calling AuthContext.register');
+      const result = await register(form);
+      console.info('[FitCore Register] AuthContext.register completed', { success: result.success });
 
-    if (result.success) {
-      navigate('/dashboard', { replace: true });
-    } else {
-      setError(result.error);
+      if (result.success) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        setError(result.error);
+      }
+    } catch (exception) {
+      console.error('[FitCore Register] unexpected submit exception', exception);
+      setError('Registration failed before the request could complete.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -136,4 +155,3 @@ const Register = () => {
 };
 
 export default Register;
-

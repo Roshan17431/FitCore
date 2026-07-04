@@ -1,11 +1,53 @@
 import axios from 'axios';
 
+const redactSensitiveFields = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveFields);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => {
+        const normalizedKey = key.toLowerCase();
+        if (
+          normalizedKey.includes('password')
+          || normalizedKey.includes('token')
+          || normalizedKey.includes('authorization')
+        ) {
+          return [key, '[REDACTED]'];
+        }
+        return [key, redactSensitiveFields(entryValue)];
+      }),
+    );
+  }
+
+  return value;
+};
+
+const parseRequestBody = (data) => {
+  if (typeof data !== 'string') return data;
+
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
+};
+
+const toPlainHeaders = (headers = {}) => {
+  const plainHeaders = typeof headers.toJSON === 'function' ? headers.toJSON() : { ...headers };
+  return redactSensitiveFields(plainHeaders);
+};
+
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
   return trimmedUrl.endsWith('/api') ? trimmedUrl.slice(0, -4) : trimmedUrl;
 };
 const backendBaseURL = normalizeBackendBaseURL(import.meta.env.VITE_API_BASE_URL);
-const apiBaseURL = backendBaseURL ? `${backendBaseURL}/api` : '/api';
+const apiBaseURL = backendBaseURL ? `${backendBaseURL}/api` : '';
+const apiConfigError = backendBaseURL
+  ? ''
+  : 'Missing VITE_API_BASE_URL. Set it to the backend origin, for example: https://fitcore-posv.onrender.com';
 
 const getRequestUrl = (config = {}) => {
   const baseURL = config.baseURL || apiBaseURL;
@@ -55,16 +97,55 @@ api.interceptors.request.use(
     if (token && !isAuthEndpoint) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    const requestUrl = getRequestUrl(config);
+    console.info('[FitCore API] request prepared', {
+      method: (config.method || 'get').toUpperCase(),
+      url: requestUrl,
+      baseURL: config.baseURL,
+      path: config.url,
+      headers: toPlainHeaders(config.headers),
+      body: redactSensitiveFields(parseRequestBody(config.data)),
+    });
+
+    if (apiConfigError) {
+      console.error('[FitCore API] request blocked by configuration error', {
+        reason: apiConfigError,
+        requestedPath: config.url,
+        resolvedUrl: requestUrl,
+        envKeys: {
+          VITE_API_BASE_URL: Boolean(import.meta.env.VITE_API_BASE_URL),
+        },
+      });
+      return Promise.reject(new Error(apiConfigError));
+    }
+
     return config;
   },
   (error) => {
+    console.error('[FitCore API] request setup failed', error);
     return Promise.reject(error);
   }
 );
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.info('[FitCore API] response received', {
+      status: response.status,
+      url: getRequestUrl(response.config),
+    });
+    return response;
+  },
   (error) => {
+    console.error('[FitCore API] request failed', {
+      message: error.message,
+      code: error.code,
+      url: getRequestUrl(error.config),
+      status: error.response?.status,
+      responseBody: error.response?.data,
+      hasRequest: Boolean(error.request),
+    });
+
     const isAuthEndpoint = error.config?.url?.startsWith('/auth/');
     if (error.response && error.response.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
