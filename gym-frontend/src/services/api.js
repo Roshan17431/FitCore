@@ -1,12 +1,11 @@
 import axios from 'axios';
 
-const DEFAULT_API_URL = 'http://localhost:8080/api';
-const configuredApiUrl = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
-const normalizeApiBaseURL = (value) => {
-  const trimmedUrl = (value || DEFAULT_API_URL).trim().replace(/\/+$/, '');
-  return trimmedUrl.endsWith('/api') ? trimmedUrl : `${trimmedUrl}/api`;
+const normalizeBackendBaseURL = (value = '') => {
+  const trimmedUrl = value.trim().replace(/\/+$/, '');
+  return trimmedUrl.endsWith('/api') ? trimmedUrl.slice(0, -4) : trimmedUrl;
 };
-const apiBaseURL = normalizeApiBaseURL(configuredApiUrl);
+const backendBaseURL = normalizeBackendBaseURL(import.meta.env.VITE_API_BASE_URL);
+const apiBaseURL = backendBaseURL ? `${backendBaseURL}/api` : '/api';
 
 const getRequestUrl = (config = {}) => {
   const baseURL = config.baseURL || apiBaseURL;

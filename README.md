@@ -53,7 +53,7 @@ DATABASE_USERNAME=your-database-username
 DATABASE_PASSWORD=your-database-password
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRATION_MS=86400000
-CORS_ALLOWED_ORIGINS=https://fit-core-one-beta.vercel.app
+CORS_ALLOWED_ORIGINS=https://fit-core-git-master-roshan17431s-projects.vercel.app,https://fit-core-one-beta.vercel.app
 JPA_DDL_AUTO=update
 SQL_INIT_MODE=always
 AWS_S3_ENABLED=false
@@ -77,7 +77,7 @@ npm install
 npm run dev
 ```
 
-The frontend reads `VITE_API_URL` from `gym-frontend/.env`.
+The frontend reads `VITE_API_BASE_URL` from `gym-frontend/.env`.
 
 ### Vercel Deployment
 
@@ -92,7 +92,7 @@ Output Directory: dist
 The frontend includes `gym-frontend/vercel.json` for Vite SPA routing. Set this Vercel environment variable:
 
 ```text
-VITE_API_URL=https://fitcore-posv.onrender.com/api
+VITE_API_BASE_URL=https://fitcore-posv.onrender.com
 ```
 
 ## Seed Data

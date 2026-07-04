@@ -44,7 +44,7 @@ public class SecurityConfig {
     private final SecurityRequestLoggingFilter securityRequestLoggingFilter;
     private final CustomUserDetailsService userDetailsService;
 
-    @Value("${cors.allowed-origins:https://fit-core-one-beta.vercel.app,http://localhost:5173,http://127.0.0.1:5173}")
+    @Value("${cors.allowed-origins:https://fit-core-git-master-roshan17431s-projects.vercel.app,https://fit-core-one-beta.vercel.app,http://localhost:5173,http://127.0.0.1:5173}")
     private String allowedOrigins;
 
     @Bean

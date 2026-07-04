@@ -9,8 +9,8 @@ npm install
 npm run dev
 ```
 
-The app uses `VITE_API_URL` from `.env` and defaults to:
+The app uses `VITE_API_BASE_URL` from `.env`. API requests are sent to:
 
 ```text
-http://localhost:8080/api
+${VITE_API_BASE_URL}/api
 ```
