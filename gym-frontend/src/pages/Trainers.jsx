@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CalendarPlus, History, IdCard, UserRoundCheck, UsersRound } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -28,6 +29,7 @@ const historyColumns = [
 ];
 
 const Trainers = ({ section = 'list' }) => {
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -67,7 +69,7 @@ const Trainers = ({ section = 'list' }) => {
 
   const submitBooking = async (event) => {
     event.preventDefault();
-    if (!user?.id || !booking.trainerId || !booking.date || !booking.time) return;
+    if (submitting || !user?.id || !booking.trainerId || !booking.date || !booking.time) return;
     const [hours, minutes] = booking.time.split(':').map(Number);
     const endHour = String((hours + 1) % 24).padStart(2, '0');
     const endTime = `${endHour}:${String(minutes || 0).padStart(2, '0')}`;
@@ -75,8 +77,8 @@ const Trainers = ({ section = 'list' }) => {
     setError('');
     try {
       await trainerService.bookSession(user.id, booking.trainerId, {
-        member: { id: user.id },
-        trainer: { id: Number(booking.trainerId) },
+        member: user,
+        trainer: { id: Number(booking.trainerId), user: selectedTrainer.user, specialization: selectedTrainer.specialization },
         sessionDate: booking.date,
         startTime: booking.time,
         endTime,
@@ -116,7 +118,10 @@ const Trainers = ({ section = 'list' }) => {
                   </div>
                   <Badge tone="emerald">{trainer.experience}</Badge>
                 </div>
-                <Button className="mt-5 w-full" icon={CalendarPlus} onClick={() => setToast(`${trainer.name} selected for booking`)} variant="outline">
+                <Button className="mt-5 w-full" icon={CalendarPlus} onClick={() => {
+                  setBooking((current) => ({ ...current, trainerId: String(trainer.id) }));
+                  navigate('/trainers/booking');
+                }} variant="outline">
                   Book Session
                 </Button>
               </div>
@@ -176,6 +181,8 @@ const Trainers = ({ section = 'list' }) => {
               />
               <FormField
                 label="Select Date"
+                required
+                min={new Date().toLocaleDateString('en-CA')}
                 name="date"
                 onChange={(event) => setBooking((current) => ({ ...current, date: event.target.value }))}
                 type="date"
@@ -183,6 +190,8 @@ const Trainers = ({ section = 'list' }) => {
               />
               <FormField
                 label="Select Time"
+                required
+                max="22:59"
                 name="time"
                 onChange={(event) => setBooking((current) => ({ ...current, time: event.target.value }))}
                 type="time"

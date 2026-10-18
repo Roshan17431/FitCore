@@ -6,6 +6,7 @@ import com.fitcore.gym.dto.trainer.TrainerSessionDto;
 import com.fitcore.gym.entity.TrainerProfile;
 import com.fitcore.gym.entity.TrainerSession;
 import com.fitcore.gym.entity.User;
+import com.fitcore.gym.exception.BadRequestException;
 import com.fitcore.gym.repository.TrainerProfileRepository;
 import com.fitcore.gym.repository.TrainerSessionRepository;
 import com.fitcore.gym.repository.UserRepository;
@@ -27,6 +28,7 @@ public class TrainerService {
 
     public List<TrainerProfileDto> getAllTrainers() {
         return trainerProfileRepository.findAll().stream()
+                .filter(profile -> profile.getUser().isEnabled())
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
@@ -37,6 +39,10 @@ public class TrainerService {
 
         TrainerProfile trainer = trainerProfileRepository.findById(trainerId)
                 .orElseThrow(() -> new RuntimeException("Trainer not found"));
+
+        if (!member.isEnabled() || !trainer.getUser().isEnabled()) {
+            throw new BadRequestException("Both accounts must be active to book a trainer session");
+        }
 
         TrainerSession session = TrainerSession.builder()
                 .member(member)
