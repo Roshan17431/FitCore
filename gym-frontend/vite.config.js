@@ -24,7 +24,6 @@ export default defineConfig({
     strictPort: true,
   },
   optimizeDeps: {
-    noDiscovery: true,
     include: [
       'cookie',
       'react',

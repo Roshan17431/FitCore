@@ -61,7 +61,9 @@ const getRequestUrl = (config = {}) => {
 };
 
 export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
-  const requestUrl = getRequestUrl(error.config);
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return 'The server took too long to respond. It may be starting up. Please try again shortly.';
+  }
 
   if (error.response) {
     const { status, data } = error.response;
@@ -76,8 +78,7 @@ export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
   }
 
   if (error.request) {
-    const reason = error.code || error.message || 'No response received';
-    return `Connection failure (${reason}) while calling ${requestUrl}. Confirm the backend is running and CORS allows this frontend origin.`;
+    return 'Unable to reach FitCore. Please try again shortly.';
   }
 
   return error.message || fallbackMessage;
@@ -85,6 +86,7 @@ export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
 
 const api = axios.create({
   baseURL: apiBaseURL,
+  timeout: 60000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -275,6 +277,8 @@ const buildAttendanceStats = (logs = []) => {
 
 const mapTrainer = (trainer) => ({
   id: trainer.id,
+  user: trainer.user,
+  enabled: trainer.user?.enabled !== false,
   name: trainer.user?.fullName || 'Trainer',
   email: trainer.user?.email,
   specialization: trainer.specialization,
@@ -318,6 +322,10 @@ export const authService = {
 
 export const dashboardService = {
   getOverview: (userId) => api.get(`/dashboard/${userId}`).then(unwrap),
+};
+
+export const notificationService = {
+  getNotifications: (userId) => api.get(`/notifications/${userId}`).then(unwrap),
 };
 
 export const membershipService = {
@@ -369,6 +377,7 @@ export const nutritionService = {
     api.get(`/nutrition/logs/${userId}`, { params: { date } }).then(unwrap).then((logs) => logs.map(mapFoodLog)),
   logFood: (userId, food) =>
     api.post(`/nutrition/log/${userId}`, {
+      userId,
       mealName: food.name || food.mealName,
       mealType: food.mealType || 'SNACK',
       calories: Number(food.calories) || 0,
@@ -408,7 +417,7 @@ export const progressService = {
       workoutCompletion: buildWorkoutCompletion(workouts),
     };
   },
-  addWeight: (userId, weight) => api.post(`/tracking/progress/${userId}`, { weight }).then(unwrap),
+  addWeight: (userId, weight) => api.post(`/tracking/progress/${userId}`, { userId, weight }).then(unwrap),
 };
 
 export const trainerService = {
@@ -443,6 +452,7 @@ export const adminService = {
     ...data,
     trainers: data.trainers.map(mapTrainer),
     membershipPlans: data.membershipPlans.map(mapMembershipPlan),
+    attendanceHistory: data.attendanceHistory.map(mapAttendanceLog),
   })),
   updateUser: (userId, payload) => api.put(`/admin/users/${userId}`, payload).then(unwrap),
   deleteUser: (userId) => api.delete(`/admin/users/${userId}`).then(unwrap),

@@ -25,6 +25,7 @@ import ChartCard from '../components/charts/ChartCard';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import Modal from '../components/common/Modal';
 import ModuleTabs from '../components/common/ModuleTabs';
 import PageHeader from '../components/common/PageHeader';
 import SearchBar from '../components/common/SearchBar';
@@ -57,6 +58,27 @@ const Admin = ({ section = 'dashboard' }) => {
   const [trainerForm, setTrainerForm] = useState({ name: '', email: '', password: '', specialization: '', experience: '' });
   const [planForm, setPlanForm] = useState({ name: '', price: '', durationMonths: '', features: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editingTrainer, setEditingTrainer] = useState(null);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const runAction = async (action, message) => {
+    if (submitting) return;
+    setSubmitting(true);
+    setActionError('');
+    try {
+      await action();
+      setToast(message);
+      await loadAdmin();
+      return true;
+    } catch (requestError) {
+      setActionError(formatApiError(requestError, 'Unable to save changes.'));
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const loadAdmin = useCallback(async () => {
     setError('');
@@ -86,29 +108,34 @@ const Admin = ({ section = 'dashboard' }) => {
     if (!normalizedQuery) return userRows;
     return userRows.filter((user) =>
       [user.fullName, user.email, user.role, user.status].some((value) =>
-        value.toLowerCase().includes(normalizedQuery),
+        String(value ?? '').toLowerCase().includes(normalizedQuery),
       ),
     );
   }, [query, userRows]);
 
   const addTrainer = async (event) => {
     event.preventDefault();
-    if (!trainerForm.name || !trainerForm.email || !trainerForm.password || !trainerForm.specialization) return;
+    if (submitting) return;
+    if (!trainerForm.name.trim() || !trainerForm.email.trim() || (!editingTrainer && !trainerForm.password) || !trainerForm.specialization.trim()) return;
     setSubmitting(true);
-    setError('');
+    setActionError('');
     try {
-      await adminService.createTrainer({
-        fullName: trainerForm.name,
-        email: trainerForm.email,
-        password: trainerForm.password,
+      const payload = {
+        fullName: trainerForm.name.trim(),
+        email: trainerForm.email.trim(),
+        password: trainerForm.password || undefined,
         specialization: trainerForm.specialization,
         experienceYears: Number(trainerForm.experience) || 0,
-      });
+        bio: editingTrainer?.bio,
+      };
+      if (editingTrainer) await adminService.updateTrainer(editingTrainer.id, payload);
+      else await adminService.createTrainer(payload);
       setTrainerForm({ name: '', email: '', password: '', specialization: '', experience: '' });
-      setToast('Trainer added');
+      setToast(editingTrainer ? 'Trainer updated' : 'Trainer added');
+      setEditingTrainer(null);
       await loadAdmin();
     } catch (requestError) {
-      setError(formatApiError(requestError, 'Unable to add trainer.'));
+      setActionError(formatApiError(requestError, 'Unable to save trainer.'));
     } finally {
       setSubmitting(false);
     }
@@ -116,22 +143,26 @@ const Admin = ({ section = 'dashboard' }) => {
 
   const addPlan = async (event) => {
     event.preventDefault();
-    if (!planForm.name || !planForm.price) return;
+    if (submitting) return;
+    if (!planForm.name.trim() || Number(planForm.price) <= 0) return;
     setSubmitting(true);
-    setError('');
+    setActionError('');
     try {
-      await adminService.createMembershipPlan({
+      const payload = {
         name: planForm.name,
         price: Number(planForm.price),
         durationMonths: Number(planForm.durationMonths) || 1,
         features: planForm.features.split(',').map((feature) => feature.trim()).filter(Boolean),
-        recommended: false,
-      });
+        recommended: editingPlan?.recommended || false,
+      };
+      if (editingPlan) await adminService.updateMembershipPlan(editingPlan.id, payload);
+      else await adminService.createMembershipPlan(payload);
       setPlanForm({ name: '', price: '', durationMonths: '', features: '' });
-      setToast('Membership plan created');
+      setToast(editingPlan ? 'Membership plan updated' : 'Membership plan created');
+      setEditingPlan(null);
       await loadAdmin();
     } catch (requestError) {
-      setError(formatApiError(requestError, 'Unable to create membership plan.'));
+      setActionError(formatApiError(requestError, 'Unable to save membership plan.'));
     } finally {
       setSubmitting(false);
     }
@@ -151,16 +182,14 @@ const Admin = ({ section = 'dashboard' }) => {
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => setToast(`${row.fullName} opened for editing`)} size="sm" variant="outline">
+          <Button onClick={() => { setActionError(''); setEditingUser({ ...row }); }} size="sm" variant="outline">
             Edit
           </Button>
           <Button
+            aria-label={`Disable ${row.fullName}`}
+            disabled={submitting || !row.enabled}
             icon={Trash2}
-            onClick={async () => {
-              await adminService.deleteUser(row.id);
-              setUserRows((current) => current.filter((user) => user.id !== row.id));
-              setToast(`${row.fullName} disabled`);
-            }}
+            onClick={() => runAction(() => adminService.deleteUser(row.id), `${row.fullName} disabled`)}
             size="sm"
             variant="danger"
           />
@@ -173,21 +202,24 @@ const Admin = ({ section = 'dashboard' }) => {
     { key: 'name', header: 'Name' },
     { key: 'specialization', header: 'Specialization' },
     { key: 'experience', header: 'Experience' },
+    { key: 'enabled', header: 'Status', render: (row) => row.enabled ? 'Active' : 'Inactive' },
     {
       key: 'actions',
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => setToast(`${row.name} update queued`)} size="sm" variant="outline">
+          <Button onClick={() => {
+            setEditingTrainer(row);
+            setTrainerForm({ name: row.name, email: row.email, password: '', specialization: row.specialization, experience: row.experienceYears });
+            setActionError('');
+          }} size="sm" variant="outline">
             Update
           </Button>
           <Button
+            aria-label={`Disable ${row.name}`}
+            disabled={submitting || !row.enabled}
             icon={Trash2}
-            onClick={async () => {
-              await adminService.deleteTrainer(row.id);
-              setTrainerRows((current) => current.filter((trainer) => trainer.id !== row.id));
-              setToast(`${row.name} disabled`);
-            }}
+            onClick={() => runAction(() => adminService.deleteTrainer(row.id), `${row.name} disabled`)}
             size="sm"
             variant="danger"
           />
@@ -205,16 +237,18 @@ const Admin = ({ section = 'dashboard' }) => {
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => setToast(`${row.name} plan opened for editing`)} size="sm" variant="outline">
+          <Button onClick={() => {
+            setEditingPlan(row);
+            setPlanForm({ name: row.name, price: row.price, durationMonths: row.durationMonths, features: (row.features || []).join(', ') });
+            setActionError('');
+          }} size="sm" variant="outline">
             Edit
           </Button>
           <Button
+            aria-label={`Delete ${row.name} plan`}
+            disabled={submitting}
             icon={Trash2}
-            onClick={async () => {
-              await adminService.deleteMembershipPlan(row.id);
-              setPlanRows((current) => current.filter((plan) => plan.id !== row.id));
-              setToast(`${row.name} plan deleted`);
-            }}
+            onClick={() => runAction(() => adminService.deleteMembershipPlan(row.id), `${row.name} plan deleted`)}
             size="sm"
             variant="danger"
           />
@@ -239,6 +273,7 @@ const Admin = ({ section = 'dashboard' }) => {
         title="Admin Dashboard"
       />
       <ModuleTabs tabs={tabs} />
+      {actionError ? <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">{actionError}</p> : null}
 
       {section === 'dashboard' ? (
         <div className="space-y-4">
@@ -297,16 +332,18 @@ const Admin = ({ section = 'dashboard' }) => {
       {section === 'trainers' ? (
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Add Trainer</h2>
+            <h2 className="text-lg font-bold text-slate-950 dark:text-white">{editingTrainer ? 'Edit Trainer' : 'Add Trainer'}</h2>
             <form className="mt-4 space-y-4" onSubmit={addTrainer}>
               <FormField
                 label="Trainer name"
+                required
                 name="name"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, name: event.target.value }))}
                 value={trainerForm.name}
               />
               <FormField
                 label="Email"
+                required
                 name="email"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, email: event.target.value }))}
                 type="email"
@@ -314,6 +351,8 @@ const Admin = ({ section = 'dashboard' }) => {
               />
               <FormField
                 label="Temporary password"
+                required={!editingTrainer}
+                minLength={8}
                 name="password"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, password: event.target.value }))}
                 type="password"
@@ -321,18 +360,21 @@ const Admin = ({ section = 'dashboard' }) => {
               />
               <FormField
                 label="Specialization"
+                required
                 name="specialization"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, specialization: event.target.value }))}
                 value={trainerForm.specialization}
               />
               <FormField
                 label="Experience years"
+                min="0"
                 name="experience"
                 onChange={(event) => setTrainerForm((current) => ({ ...current, experience: event.target.value }))}
                 type="number"
                 value={trainerForm.experience}
               />
-              <Button icon={Plus} isLoading={submitting} type="submit">Add Trainer</Button>
+              <Button icon={Plus} isLoading={submitting} type="submit">{editingTrainer ? 'Save Trainer' : 'Add Trainer'}</Button>
+              {editingTrainer ? <Button className="ml-2" variant="outline" onClick={() => { setEditingTrainer(null); setTrainerForm({ name: '', email: '', password: '', specialization: '', experience: '' }); }}>Cancel</Button> : null}
             </form>
           </Card>
           <DataTable columns={trainerColumns} data={trainerRows} />
@@ -342,16 +384,20 @@ const Admin = ({ section = 'dashboard' }) => {
       {section === 'memberships' ? (
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Create Plan</h2>
+            <h2 className="text-lg font-bold text-slate-950 dark:text-white">{editingPlan ? 'Edit Plan' : 'Create Plan'}</h2>
             <form className="mt-4 space-y-4" onSubmit={addPlan}>
               <FormField
                 label="Plan name"
+                required
                 name="name"
                 onChange={(event) => setPlanForm((current) => ({ ...current, name: event.target.value }))}
                 value={planForm.name}
               />
               <FormField
                 label="Price"
+                required
+                min="0.01"
+                step="0.01"
                 name="price"
                 onChange={(event) => setPlanForm((current) => ({ ...current, price: event.target.value }))}
                 type="number"
@@ -359,6 +405,8 @@ const Admin = ({ section = 'dashboard' }) => {
               />
               <FormField
                 label="Duration months"
+                required
+                min="1"
                 name="durationMonths"
                 onChange={(event) => setPlanForm((current) => ({ ...current, durationMonths: event.target.value }))}
                 type="number"
@@ -371,7 +419,8 @@ const Admin = ({ section = 'dashboard' }) => {
                 placeholder="Gym access, Trainer consultation"
                 value={planForm.features}
               />
-              <Button icon={Plus} isLoading={submitting} type="submit">Create Plan</Button>
+              <Button icon={Plus} isLoading={submitting} type="submit">{editingPlan ? 'Save Plan' : 'Create Plan'}</Button>
+              {editingPlan ? <Button className="ml-2" variant="outline" onClick={() => { setEditingPlan(null); setPlanForm({ name: '', price: '', durationMonths: '', features: '' }); }}>Cancel</Button> : null}
             </form>
           </Card>
           <DataTable columns={planColumns} data={planRows} />
@@ -385,7 +434,17 @@ const Admin = ({ section = 'dashboard' }) => {
               <h2 className="text-lg font-bold text-slate-950 dark:text-white">Attendance Management</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">View attendance records and generate operations reports.</p>
             </div>
-            <Button icon={FileText} onClick={() => setToast('Attendance report generated')}>
+            <Button icon={FileText} onClick={() => {
+              const rows = [['Member ID', 'Date', 'Check-In', 'Check-Out'], ...data.attendanceHistory.map((row) => [row.raw.userId, row.date, row.checkInTime, row.checkOutTime])];
+              const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"', '""')}"`).join(',')).join('\r\n');
+              const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = 'fitcore-attendance.csv';
+              link.click();
+              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+              setToast('Attendance report downloaded');
+            }}>
               Generate Reports
             </Button>
           </Card>
@@ -393,6 +452,24 @@ const Admin = ({ section = 'dashboard' }) => {
         </div>
       ) : null}
 
+      <Modal isOpen={Boolean(editingUser)} onClose={() => { if (!submitting) setEditingUser(null); }} title="Edit User">
+        {editingUser ? <form className="space-y-4" onSubmit={async (event) => {
+          event.preventDefault();
+          const saved = await runAction(() => adminService.updateUser(editingUser.id, {
+            fullName: editingUser.fullName.trim(), email: editingUser.email.trim(), role: editingUser.role,
+            fitnessGoal: editingUser.fitnessGoal, enabled: editingUser.enabled,
+          }), 'User updated');
+          if (saved) setEditingUser(null);
+        }}>
+          <FormField required label="Full name" value={editingUser.fullName} onChange={(event) => setEditingUser((current) => ({ ...current, fullName: event.target.value }))} />
+          <FormField required type="email" label="Email" value={editingUser.email} onChange={(event) => setEditingUser((current) => ({ ...current, email: event.target.value }))} />
+          <FormField label="Role" options={['MEMBER', 'TRAINER', 'ADMIN']} value={editingUser.role} onChange={(event) => setEditingUser((current) => ({ ...current, role: event.target.value }))} />
+          <FormField label="Fitness goal" value={editingUser.fitnessGoal || ''} onChange={(event) => setEditingUser((current) => ({ ...current, fitnessGoal: event.target.value }))} />
+          <label className="flex gap-2 text-sm"><input type="checkbox" checked={editingUser.enabled} onChange={(event) => setEditingUser((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
+          {actionError ? <p role="alert" className="text-sm text-rose-600">{actionError}</p> : null}
+          <Button type="submit" isLoading={submitting}>Save User</Button>
+        </form> : null}
+      </Modal>
       <Toast message={toast} />
     </div>
   );

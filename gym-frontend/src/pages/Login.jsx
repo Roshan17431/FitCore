@@ -22,21 +22,24 @@ const Login = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError('');
 
-    if (!form.email || !form.password) {
+    if (!form.email.trim() || !form.password) {
       setError('Email and password are required.');
       return;
     }
 
     setIsSubmitting(true);
-    const result = await login(form.email, form.password, form.rememberMe);
-    setIsSubmitting(false);
-
-    if (result.success) {
-      navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
-    } else {
-      setError(result.error);
+    try {
+      const result = await login(form.email.trim(), form.password, form.rememberMe);
+      if (result.success) {
+        navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
+      } else {
+        setError(result.error);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

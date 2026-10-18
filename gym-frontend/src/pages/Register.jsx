@@ -28,6 +28,7 @@ const Register = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError('');
 
     console.info('[FitCore Register] submit handler executed', {
@@ -39,7 +40,7 @@ const Register = () => {
       passwordsMatch: form.password === form.confirmPassword,
     });
 
-    if (!form.fullName || !form.email || !form.password || !form.confirmPassword) {
+    if (!form.fullName.trim() || !form.email.trim() || !form.password || !form.confirmPassword) {
       console.warn('[FitCore Register] validation stopped submission: missing required fields');
       setError('All fields are required.');
       return;
@@ -54,7 +55,7 @@ const Register = () => {
     setIsSubmitting(true);
     try {
       console.info('[FitCore Register] calling AuthContext.register');
-      const result = await register(form);
+      const result = await register({ ...form, fullName: form.fullName.trim(), email: form.email.trim() });
       console.info('[FitCore Register] AuthContext.register completed', { success: result.success });
 
       if (result.success) {

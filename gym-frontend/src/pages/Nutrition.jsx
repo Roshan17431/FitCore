@@ -61,14 +61,16 @@ const Nutrition = ({ section = 'dashboard' }) => {
   }, [foodLogs, query]);
 
   const addFood = async (food) => {
-    if (!user?.id) return;
+    if (saving || !user?.id) return false;
     setSaving(true);
     setError('');
     try {
       await nutritionService.logFood(user.id, food);
       await loadNutrition();
+      return true;
     } catch (requestError) {
       setError(formatApiError(requestError, 'Unable to log food.'));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -77,7 +79,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
   const submitFood = async (event) => {
     event.preventDefault();
     if (!form.name || !form.calories) return;
-    await addFood({
+    const saved = await addFood({
       name: form.name,
       calories: Number(form.calories),
       protein: Number(form.protein) || 0,
@@ -85,7 +87,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
       fat: Number(form.fat) || 0,
       serving: 'Custom',
     });
-    setForm({ name: '', calories: '', protein: '', carbs: '', fat: '' });
+    if (saved) setForm({ name: '', calories: '', protein: '', carbs: '', fat: '' });
   };
 
   if (error) return <StateBlock message={error} onAction={loadNutrition} />;
@@ -120,6 +122,8 @@ const Nutrition = ({ section = 'dashboard' }) => {
           ))}
         </div>
       ) : null}
+
+      {section === 'diet-plans' && !data.dietPlans.length ? <StateBlock title="No diet plans available" message="Diet plans will appear here when they are added to the library." /> : null}
 
       {section === 'diet-plans' ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -164,6 +168,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
               <FormField
                 className="sm:col-span-2"
                 label="Food name"
+                required
                 name="name"
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="Grilled salmon"
@@ -177,6 +182,8 @@ const Nutrition = ({ section = 'dashboard' }) => {
                   onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
                   placeholder="0"
                   type="number"
+                  min="0"
+                  required={field === 'calories'}
                   value={form[field]}
                 />
               ))}

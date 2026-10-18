@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -29,6 +30,9 @@ const historyColumns = [
 
 const Workouts = ({ section = 'library' }) => {
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedPlanId = searchParams.get('plan') || localStorage.getItem(`workoutPlan:${user?.id}`);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -39,18 +43,27 @@ const Workouts = ({ section = 'library' }) => {
     if (!user?.id) return;
     setError('');
     try {
-      const [library, plans, dailyTracker, history] = await Promise.all([
+      const [library, plans, history] = await Promise.all([
         workoutService.getLibrary(),
         workoutService.getPlans(),
-        workoutService.getDailyTracker(),
         workoutService.getHistory(user.id),
       ]);
-      setData({ library, plans, history });
-      setTracker(dailyTracker);
+      const selectedPlan = plans.find((plan) => String(plan.id) === selectedPlanId);
+      const exercises = library.flatMap((group) => group.exercises.map((exercise) => ({ ...exercise, category: group.category })));
+      const dailyExercises = selectedPlan
+        ? exercises.filter((exercise) => selectedPlan.exercises.includes(exercise.name))
+        : exercises.slice(0, 5);
+      setData({ library, plans, history, selectedPlan });
+      setTracker(dailyExercises.map((exercise) => ({
+        id: exercise.id, name: exercise.name, category: exercise.category, difficulty: exercise.difficulty,
+        targetSets: exercise.sets || 0,
+        targetReps: exercise.reps || '0', sets: exercise.sets || 0,
+        reps: 0, complete: false,
+      })));
     } catch (requestError) {
       setError(formatApiError(requestError, 'Unable to load workouts.'));
     }
-  }, [user?.id]);
+  }, [user?.id, selectedPlanId]);
 
   useEffect(() => {
     loadWorkouts();
@@ -83,7 +96,7 @@ const Workouts = ({ section = 'library' }) => {
 
   const saveTracker = async () => {
     const completed = tracker.filter((exercise) => exercise.complete);
-    if (!completed.length || !user?.id) return;
+    if (saving || !completed.length || !user?.id) return;
     setSaving(true);
     setError('');
     try {
@@ -92,7 +105,7 @@ const Workouts = ({ section = 'library' }) => {
         durationMinutes: completed.length * 12,
         notes: 'Daily workout tracker session',
         exercises: completed.map((exercise) => ({
-          exercise: { id: exercise.id },
+          exercise: { id: exercise.id, name: exercise.name, category: exercise.category, difficulty: exercise.difficulty.toUpperCase() },
           setsCompleted: Number(exercise.sets) || 0,
           repsCompleted: String(exercise.reps || exercise.targetReps || ''),
         })),
@@ -187,16 +200,21 @@ const Workouts = ({ section = 'library' }) => {
                   ))}
                 </div>
               </div>
-              <Button className="mt-auto" variant="outline">Assign Plan</Button>
+              <Button className="mt-auto" variant="outline" onClick={() => {
+                localStorage.setItem(`workoutPlan:${user.id}`, String(plan.id));
+                navigate(`/workouts/tracker?plan=${plan.id}`);
+              }}>Assign Plan</Button>
             </Card>
           ))}
         </div>
       ) : null}
 
+      {section === 'plans' && !data.plans.length ? <StateBlock title="No workout plans available" message="Workout plans will appear here when they are added to the library." /> : null}
+
       {section === 'tracker' ? (
         <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
           <Card>
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Completion Percentage</p>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{data.selectedPlan ? `${data.selectedPlan.level} Plan` : 'Completion Percentage'}</p>
             <p className="mt-2 text-5xl font-bold text-slate-950 dark:text-white">{completion}%</p>
             <div className="mt-5 h-3 rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-3 rounded-full bg-emerald-500 transition-all" style={{ width: `${completion}%` }} />

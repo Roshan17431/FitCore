@@ -24,6 +24,7 @@ const sizes = {
 const Button = ({
   children,
   className,
+  disabled = false,
   icon: Icon,
   isLoading = false,
   size = 'md',
@@ -38,6 +39,8 @@ const Button = ({
       sizes[size],
       className,
     )}
+    aria-busy={isLoading || undefined}
+    disabled={disabled || isLoading}
     type={type}
     {...props}
   >
