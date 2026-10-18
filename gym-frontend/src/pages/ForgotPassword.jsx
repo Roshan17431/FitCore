@@ -15,17 +15,25 @@ const ForgotPassword = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError('');
     setMessage('');
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setError('Email is required.');
+      return;
+    }
     setIsSubmitting(true);
 
-    const result = await resetPassword(email);
-    setIsSubmitting(false);
-
-    if (result.success) {
-      setMessage('Reset password request submitted.');
-    } else {
-      setError(result.error);
+    try {
+      const result = await resetPassword(normalizedEmail);
+      if (result.success) {
+        setMessage('Contact your gym administrator to complete your password reset.');
+      } else {
+        setError(result.error);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -37,11 +45,11 @@ const ForgotPassword = () => {
             <Dumbbell className="h-6 w-6" />
           </div>
           <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Forgot Password</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Request a password reset for your account.</p>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Email recovery is not configured yet. Contact your gym administrator for help resetting your password.</p>
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+          <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
             {error}
           </div>
         ) : null}
