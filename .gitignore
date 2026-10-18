@@ -15,6 +15,10 @@ gym-frontend/dist/
 gym-frontend/.vite/
 gym-frontend/.vite-temp/
 
+### Browser verification artifacts ###
+.playwright-cli/
+output/playwright/
+
 ### STS ###
 .apt_generated
 .classpath
