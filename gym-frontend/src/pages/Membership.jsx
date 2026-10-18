@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CreditCard, History, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -27,10 +28,12 @@ const historyColumns = [
 ];
 
 const Membership = ({ section = 'plans' }) => {
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const loadMemberships = useCallback(async () => {
     if (!user?.id) return;
@@ -58,7 +61,8 @@ const Membership = ({ section = 'plans' }) => {
   }, [toast]);
 
   const submitPlanAction = async (plan, action) => {
-    if (!user?.id) return;
+    if (submitting || !user?.id) return;
+    setSubmitting(true);
     setError('');
     try {
       await membershipService.subscribe(user.id, plan.id);
@@ -66,6 +70,8 @@ const Membership = ({ section = 'plans' }) => {
       await loadMemberships();
     } catch (requestError) {
       setError(formatApiError(requestError, `Unable to ${action} ${plan.name} plan.`));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -103,13 +109,13 @@ const Membership = ({ section = 'plans' }) => {
                 ))}
               </ul>
               <div className="mt-auto grid gap-2 pt-6">
-                <Button icon={CreditCard} onClick={() => submitPlanAction(plan, 'purchased')}>
+                <Button disabled={submitting} icon={CreditCard} onClick={() => submitPlanAction(plan, 'purchased')}>
                   Purchase Plan
                 </Button>
-                <Button icon={Sparkles} onClick={() => submitPlanAction(plan, 'upgraded')} variant="outline">
+                <Button disabled={submitting} icon={Sparkles} onClick={() => submitPlanAction(plan, 'upgraded')} variant="outline">
                   Upgrade Plan
                 </Button>
-                <Button icon={RotateCcw} onClick={() => submitPlanAction(plan, 'renewed')} variant="ghost">
+                <Button disabled={submitting} icon={RotateCcw} onClick={() => submitPlanAction(plan, 'renewed')} variant="ghost">
                   Renew Plan
                 </Button>
               </div>
@@ -127,7 +133,7 @@ const Membership = ({ section = 'plans' }) => {
                 <h2 className="mt-4 text-3xl font-bold text-slate-950 dark:text-white">{data.active.plan} Plan</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Current membership plan and lifecycle details.</p>
               </div>
-              <Button icon={RotateCcw} onClick={() => setToast('Select a plan to renew from the plans tab')}>
+              <Button icon={RotateCcw} onClick={() => navigate('/membership/plans')}>
                 Renew Plan
               </Button>
             </div>
