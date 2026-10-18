@@ -39,6 +39,7 @@ const Progress = ({ section = 'weight' }) => {
   const [weight, setWeight] = useState('');
   const [weightHistory, setWeightHistory] = useState([]);
   const [bmiInput, setBmiInput] = useState({ height: '', weight: '' });
+  const [saving, setSaving] = useState(false);
 
   const loadProgress = useCallback(async () => {
     if (!user?.id) return;
@@ -51,7 +52,7 @@ const Progress = ({ section = 'weight' }) => {
           id: index + 1,
           date: item.label,
           weight: `${item.weight} kg`,
-          bodyFat: `${item.bodyFat}%`,
+          bodyFat: item.bodyFat == null ? '--' : `${item.bodyFat}%`,
         })),
       );
       const latest = progress.weightProgress.at(-1);
@@ -81,7 +82,8 @@ const Progress = ({ section = 'weight' }) => {
 
   const addWeight = async (event) => {
     event.preventDefault();
-    if (!weight || !user?.id) return;
+    if (saving || Number(weight) <= 0 || !user?.id) return;
+    setSaving(true);
     setError('');
     try {
       await progressService.addWeight(user.id, Number(weight));
@@ -89,6 +91,8 @@ const Progress = ({ section = 'weight' }) => {
       await loadProgress();
     } catch (requestError) {
       setError(formatApiError(requestError, 'Unable to add weight.'));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -109,13 +113,16 @@ const Progress = ({ section = 'weight' }) => {
             <form className="mt-4 space-y-4" onSubmit={addWeight}>
               <FormField
                 label="Weight kg"
+                required
+                min="0.1"
+                step="0.1"
                 name="weight"
                 onChange={(event) => setWeight(event.target.value)}
                 placeholder="79.4"
                 type="number"
                 value={weight}
               />
-              <Button icon={Plus} type="submit">Add Weight</Button>
+              <Button icon={Plus} isLoading={saving} type="submit">Add Weight</Button>
             </form>
             <div className="mt-6 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Latest Weight</p>
