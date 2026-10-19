@@ -26,6 +26,6 @@ services:
       - key: JPA_FORMAT_SQL
         value: false
       - key: SQL_INIT_MODE
-        value: always
+        value: never
       - key: AWS_S3_ENABLED
         value: false

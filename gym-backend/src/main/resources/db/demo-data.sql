@@ -1,4 +1,5 @@
--- Seed password for every seeded user: Fitcore@123
+-- Opt-in demo fixtures for isolated databases; never initialize production with this file.
+-- Public password: Fitcore@123. Administrators must rotate it before authentication is allowed.
 
 INSERT INTO users (id, full_name, email, password_hash, role, fitness_goal, created_at, updated_at) VALUES
 ('11111111-1111-1111-1111-111111111111', 'Maya Singh', 'maya.admin@fitcore.test', '$2y$10$NaDwZvIufqUN0Thv1R/iqeQDZRLSAxZ9cFITenn8WFkNwa424QDgW', 'ADMIN', 'Operations', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
