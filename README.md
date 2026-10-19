@@ -105,7 +105,7 @@ JWT_SECRET=replace-with-at-least-32-random-characters
 JWT_EXPIRATION_MS=86400000
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 JPA_DDL_AUTO=update
-SQL_INIT_MODE=always
+SQL_INIT_MODE=never
 AWS_S3_ENABLED=false
 ```
 
@@ -114,6 +114,10 @@ Run the API:
 ```bash
 ./mvnw spring-boot:run
 ```
+
+Demo fixtures are opt-in and must only use an isolated database. Production does not
+load demo accounts, and the published administrator password is rejected even for
+existing database rows. See [security configuration and account rotation](docs/security-fixes-2026-10-19.md).
 
 The backend runs at:
 
@@ -202,7 +206,7 @@ npm run lint
 | `JWT_EXPIRATION_MS` | No | Token lifetime in milliseconds |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated frontend origins |
 | `JPA_DDL_AUTO` | No | Hibernate schema mode, usually `update` |
-| `SQL_INIT_MODE` | No | Seed data mode, usually `always` or `never` |
+| `SQL_INIT_MODE` | No | Defaults to `never`; production must not load demo fixtures |
 | `AWS_S3_ENABLED` | No | Enables S3 image upload support |
 | `AWS_ACCESS_KEY_ID` | If S3 enabled | AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | If S3 enabled | AWS secret key |
@@ -245,7 +249,7 @@ JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRATION_MS=86400000
 CORS_ALLOWED_ORIGINS=https://your-vercel-domain.vercel.app,http://localhost:5173,http://127.0.0.1:5173
 JPA_DDL_AUTO=update
-SQL_INIT_MODE=always
+SQL_INIT_MODE=never
 AWS_S3_ENABLED=false
 ```
 
