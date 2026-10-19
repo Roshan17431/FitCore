@@ -9,7 +9,12 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import java.security.Key;
+import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +45,7 @@ public class JwtService {
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
         return Jwts.builder()
                 .setClaims(extraClaims)
+                .claim("credentialsVersion", credentialsVersion(userDetails))
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
@@ -49,7 +55,30 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        final String version = extractClaim(token, claims -> claims.get("credentialsVersion", String.class));
+        return userDetails.isEnabled()
+                && userDetails.isAccountNonExpired()
+                && userDetails.isAccountNonLocked()
+                && userDetails.isCredentialsNonExpired()
+                && username.equals(userDetails.getUsername())
+                && !isTokenExpired(token)
+                && version != null
+                && MessageDigest.isEqual(version.getBytes(StandardCharsets.UTF_8),
+                        credentialsVersion(userDetails).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String credentialsVersion(UserDetails userDetails) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            // Do not expose the stored password hash in the JWT. A keyed version
+            // invalidates old tokens when credentials change, including demo-account rotation.
+            byte[] version = mac.doFinal(("credentials-version:" + userDetails.getPassword())
+                    .getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(version);
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Unable to derive credential version", exception);
+        }
     }
 
     private boolean isTokenExpired(String token) {
