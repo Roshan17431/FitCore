@@ -5,6 +5,7 @@ import com.fitcore.gym.entity.User;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.UUID;
 
@@ -14,6 +15,7 @@ public class UserService {
 
     private final UserRepository userRepository;
 
+    @PreAuthorize("@recordAccess.user(authentication, #id)")
     public UserDto getUserById(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));

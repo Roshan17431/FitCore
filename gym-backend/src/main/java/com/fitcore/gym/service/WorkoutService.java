@@ -16,6 +16,7 @@ import com.fitcore.gym.repository.WorkoutLogRepository;
 import com.fitcore.gym.repository.WorkoutPlanRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -44,6 +45,7 @@ public class WorkoutService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<WorkoutLogDto> getUserWorkoutLogs(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -53,6 +55,7 @@ public class WorkoutService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public WorkoutLogDto logWorkout(UUID userId, WorkoutLogDto request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

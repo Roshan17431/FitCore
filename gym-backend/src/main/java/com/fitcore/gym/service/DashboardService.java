@@ -27,6 +27,7 @@ import com.fitcore.gym.repository.WorkoutExerciseLogRepository;
 import com.fitcore.gym.repository.WorkoutLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -54,6 +55,7 @@ public class DashboardService {
     private final TrainerSessionRepository trainerSessionRepository;
     private final NotificationRepository notificationRepository;
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public DashboardOverviewDto getOverview(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

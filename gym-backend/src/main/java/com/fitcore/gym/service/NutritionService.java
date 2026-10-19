@@ -16,6 +16,7 @@ import com.fitcore.gym.repository.NutritionPlanRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -32,6 +33,7 @@ public class NutritionService {
     private final NutritionPlanRepository nutritionPlanRepository;
     private final UserRepository userRepository;
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public NutritionDashboardDto getDashboard(UUID userId) {
         NutritionGoalDto goal = getGoal(userId);
         List<FoodLogDto> logs = getDailyLogs(userId, LocalDate.now());
@@ -67,6 +69,7 @@ public class NutritionService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public NutritionGoalDto setGoal(UUID userId, NutritionGoalDto request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -81,6 +84,7 @@ public class NutritionService {
         return mapToDto(nutritionGoalRepository.save(goal));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public NutritionGoalDto getGoal(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -90,6 +94,7 @@ public class NutritionService {
                 .orElse(null);
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public FoodLogDto logFood(UUID userId, FoodLogDto request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -109,6 +114,7 @@ public class NutritionService {
         return mapToDto(foodLogRepository.save(log));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<FoodLogDto> getDailyLogs(UUID userId, LocalDate date) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

@@ -12,6 +12,7 @@ import com.fitcore.gym.repository.TrainerSessionRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public class TrainerService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #memberId)")
     public TrainerSessionDto bookSession(UUID memberId, Long trainerId, TrainerSessionDto request) {
         User member = userRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Member not found"));
@@ -56,6 +58,7 @@ public class TrainerService {
         return mapToDto(trainerSessionRepository.save(session));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #memberId)")
     public List<TrainerSessionDto> getMemberSessions(UUID memberId) {
         User member = userRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Member not found"));

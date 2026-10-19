@@ -10,6 +10,7 @@ import com.fitcore.gym.repository.ProgressMetricRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class TrackingService {
     private final AttendanceRepository attendanceRepository;
     private final UserRepository userRepository;
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public ProgressMetricDto logProgress(UUID userId, ProgressMetricDto request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -43,6 +45,7 @@ public class TrackingService {
         return mapToDto(progressMetricRepository.save(metric));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<ProgressMetricDto> getUserProgress(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -52,6 +55,7 @@ public class TrackingService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public AttendanceDto checkIn(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -70,6 +74,7 @@ public class TrackingService {
         return mapToDto(attendanceRepository.save(attendance));
     }
 
+    @PreAuthorize("@recordAccess.attendance(authentication, #attendanceId)")
     public AttendanceDto checkOut(Long attendanceId) {
         Attendance attendance = attendanceRepository.findById(attendanceId)
                 .orElseThrow(() -> new RuntimeException("Attendance record not found"));
@@ -79,6 +84,7 @@ public class TrackingService {
         return mapToDto(attendanceRepository.save(attendance));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<AttendanceDto> getUserAttendance(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));

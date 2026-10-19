@@ -11,6 +11,7 @@ import com.fitcore.gym.repository.MembershipPlanRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -31,6 +32,7 @@ public class MembershipService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public ActiveMembershipDto subscribeUserToPlan(UUID userId, Long planId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -49,6 +51,7 @@ public class MembershipService {
         return mapToDto(activeMembershipRepository.save(membership));
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<ActiveMembershipDto> getUserMemberships(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -57,6 +60,7 @@ public class MembershipService {
                 .collect(Collectors.toList());
     }
 
+    @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public ActiveMembershipDto getCurrentMembership(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
