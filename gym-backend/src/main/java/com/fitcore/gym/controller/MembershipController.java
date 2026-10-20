@@ -2,6 +2,9 @@ package com.fitcore.gym.controller;
 
 import com.fitcore.gym.dto.membership.ActiveMembershipDto;
 import com.fitcore.gym.dto.membership.MembershipPlanDto;
+import com.fitcore.gym.dto.membership.RenewMembershipRequest;
+import com.fitcore.gym.dto.membership.UpgradeMembershipRequest;
+import jakarta.validation.Valid;
 import com.fitcore.gym.service.MembershipService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -71,5 +74,18 @@ public class MembershipController {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(membership);
+    }
+
+    @PostMapping("/renew/{userId}/{membershipId}")
+    public ResponseEntity<ActiveMembershipDto> renew(@PathVariable UUID userId,
+            @PathVariable Long membershipId, @Valid @RequestBody RenewMembershipRequest request) {
+        return ResponseEntity.ok(membershipService.renewMembership(userId, membershipId, request.expectedEndDate()));
+    }
+
+    @PostMapping("/upgrade/{userId}/{planId}")
+    public ResponseEntity<ActiveMembershipDto> upgrade(@PathVariable UUID userId,
+            @PathVariable Long planId, @Valid @RequestBody UpgradeMembershipRequest request) {
+        return ResponseEntity.ok(membershipService.upgradeMembership(userId, planId,
+                request.membershipId(), request.expectedEndDate()));
     }
 }
