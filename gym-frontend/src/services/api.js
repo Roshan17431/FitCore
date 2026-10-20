@@ -201,18 +201,22 @@ const mapMembershipPlan = (plan) => ({
 const mapMembership = (membership) => {
   if (!membership) return null;
   const endDate = membership.endDate || membership.expiryDate;
-  const remainingDays = endDate
-    ? Math.max(Math.ceil((new Date(endDate) - new Date()) / 86400000), 0)
-    : 0;
+  const plan = typeof membership.plan === 'object' && membership.plan ? membership.plan : null;
+  const planName = plan?.name || membership.planName || (typeof membership.plan === 'string' ? membership.plan : 'Membership');
 
   return {
     ...membership,
-    plan: membership.plan?.name || membership.planName || 'Membership',
-    features: membership.plan?.features || [],
+    plan: planName,
+    planName,
+    planId: plan?.id ?? membership.planId,
+    planPrice: Number(plan?.price ?? membership.planPrice ?? 0),
+    durationMonths: plan?.durationMonths ?? membership.durationMonths,
+    features: plan?.features || membership.features || [],
     startDate: membership.startDate,
+    endDate,
     expiryDate: endDate,
-    remainingDays,
-    status: labelFromEnum(membership.status),
+    remainingDays: membership.remainingDays ?? 0,
+    status: labelFromEnum(membership.effectiveStatus || membership.status),
   };
 };
 
@@ -332,8 +336,7 @@ export const membershipService = {
   getPlans: () => api.get('/memberships/plans').then(unwrap).then((plans) => plans.map(mapMembershipPlan)),
   getActive: (userId) =>
     api.get(`/memberships/user/${userId}/active`)
-      .then(unwrap)
-      .then(mapMembership)
+      .then((response) => response.status === 204 ? null : mapMembership(response.data))
       .catch((error) => {
         if (error.response?.status === 204) return null;
         throw error;
@@ -341,14 +344,15 @@ export const membershipService = {
   getHistory: (userId) =>
     api.get(`/memberships/user/${userId}`).then(unwrap).then((memberships) =>
       memberships.map((membership) => ({
-        id: membership.id,
-        planName: membership.plan?.name || 'Membership',
+        ...mapMembership(membership),
         purchaseDate: membership.startDate,
-        expiryDate: membership.endDate,
-        status: labelFromEnum(membership.status),
       })),
     ),
   subscribe: (userId, planId) => api.post(`/memberships/subscribe/${userId}/${planId}`).then(unwrap),
+  renew: (userId, membershipId, expectedEndDate) =>
+    api.post(`/memberships/renew/${userId}/${membershipId}`, { expectedEndDate }).then(unwrap),
+  upgrade: (userId, planId, membershipId, expectedEndDate) =>
+    api.post(`/memberships/upgrade/${userId}/${planId}`, { membershipId, expectedEndDate }).then(unwrap),
 };
 
 export const workoutService = {
