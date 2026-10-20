@@ -30,6 +30,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -52,6 +54,7 @@ public class AdminService {
     private final MembershipService membershipService;
     private final TrainerService trainerService;
     private final TrackingService trackingService;
+    private final Clock clock;
 
     public AdminDashboardDto getDashboard() {
         List<AdminUserDto> users = getUsers();
@@ -63,14 +66,21 @@ public class AdminService {
                 .collect(Collectors.toList());
         List<AttendanceDto> attendance = getAttendance();
 
-        BigDecimal revenue = activeMembershipRepository.findByStatus(MembershipStatus.ACTIVE).stream()
+        LocalDate date = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        var currentByUser = activeMembershipRepository.findByStatus(MembershipStatus.ACTIVE).stream()
+                .filter(item -> item.isCurrentOn(date)).collect(Collectors.groupingBy(item -> item.getUser().getId()));
+        List<ActiveMembership> currentMemberships = currentByUser.values().stream().filter(items -> items.size() == 1)
+                .map(items -> items.get(0)).toList();
+        long needsReview = currentByUser.values().stream().filter(items -> items.size() > 1).count();
+        BigDecimal revenue = currentMemberships.stream()
                 .map(item -> item.getPlan().getPrice())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return AdminDashboardDto.builder()
                 .adminCards(List.of(
                         card("Total Members", String.valueOf(userRepository.countByRole(Role.MEMBER)), "Registered members", "sky"),
-                        card("Active Members", String.valueOf(activeMembershipRepository.countByStatus(MembershipStatus.ACTIVE)), "Active subscriptions", "emerald"),
+                        card("Active Members", String.valueOf(currentMemberships.size()), needsReview == 0
+                                ? "Active subscriptions" : needsReview + " users need membership review", "emerald"),
                         card("Trainers", String.valueOf(userRepository.countByRole(Role.TRAINER)), "Trainer accounts", "amber"),
                         card("Revenue", "$" + revenue.intValue(), "Active subscriptions", "emerald")
                 ))
@@ -213,14 +223,18 @@ public class AdminService {
     }
 
     private AdminUserDto mapUser(User user) {
-        ActiveMembership membership = activeMembershipRepository.findFirstByUserOrderByStartDateDesc(user).orElse(null);
+        LocalDate date = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        var current = activeMembershipRepository.findByUserOrderByStartDateDesc(user).stream()
+                .filter(item -> item.isCurrentOn(date)).toList();
+        String membership = current.size() > 1 ? "Review required"
+                : current.isEmpty() ? "None" : current.get(0).getPlan().getName();
         return AdminUserDto.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .role(user.getRole())
                 .fitnessGoal(user.getFitnessGoal())
-                .membership(membership == null ? "None" : membership.getPlan().getName())
+                .membership(membership)
                 .status(user.isEnabled() ? "Active" : "Inactive")
                 .enabled(user.isEnabled())
                 .build();

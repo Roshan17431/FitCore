@@ -1,6 +1,5 @@
 package com.fitcore.gym.service;
 
-import com.fitcore.gym.domain.MembershipStatus;
 import com.fitcore.gym.domain.SessionStatus;
 import com.fitcore.gym.dto.dashboard.ActivityDto;
 import com.fitcore.gym.dto.dashboard.ChartPointDto;
@@ -8,7 +7,7 @@ import com.fitcore.gym.dto.dashboard.DashboardOverviewDto;
 import com.fitcore.gym.dto.dashboard.StatCardDto;
 import com.fitcore.gym.dto.dashboard.UpcomingSessionDto;
 import com.fitcore.gym.dto.notification.NotificationDto;
-import com.fitcore.gym.entity.ActiveMembership;
+import com.fitcore.gym.dto.membership.ActiveMembershipDto;
 import com.fitcore.gym.entity.Attendance;
 import com.fitcore.gym.entity.FoodLog;
 import com.fitcore.gym.entity.Notification;
@@ -16,7 +15,6 @@ import com.fitcore.gym.entity.ProgressMetric;
 import com.fitcore.gym.entity.TrainerSession;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.entity.WorkoutLog;
-import com.fitcore.gym.repository.ActiveMembershipRepository;
 import com.fitcore.gym.repository.AttendanceRepository;
 import com.fitcore.gym.repository.FoodLogRepository;
 import com.fitcore.gym.repository.NotificationRepository;
@@ -30,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -46,7 +46,8 @@ public class DashboardService {
     private static final DateTimeFormatter LABEL_FORMATTER = DateTimeFormatter.ofPattern("MMM d");
 
     private final UserRepository userRepository;
-    private final ActiveMembershipRepository activeMembershipRepository;
+    private final MembershipService membershipService;
+    private final Clock clock;
     private final WorkoutLogRepository workoutLogRepository;
     private final WorkoutExerciseLogRepository workoutExerciseLogRepository;
     private final FoodLogRepository foodLogRepository;
@@ -60,11 +61,8 @@ public class DashboardService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        LocalDate today = LocalDate.now();
-        ActiveMembership membership = activeMembershipRepository.findByUserOrderByStartDateDesc(user).stream()
-                .filter(item -> item.getStatus() == MembershipStatus.ACTIVE)
-                .findFirst()
-                .orElse(null);
+        LocalDate today = LocalDate.now(clock.withZone(ZoneOffset.UTC));
+        ActiveMembershipDto membership = membershipService.getCurrentMembership(userId);
         List<WorkoutLog> workouts = workoutLogRepository.findByUserOrderByDateDesc(user);
         List<FoodLog> todayFoodLogs = foodLogRepository.findByUserAndLogDateOrderByLogTimeDesc(user, today);
         List<Attendance> attendance = attendanceRepository.findByUserOrderByCheckInTimeDesc(user);
@@ -84,7 +82,7 @@ public class DashboardService {
     }
 
     private List<StatCardDto> buildCards(
-            ActiveMembership membership,
+            ActiveMembershipDto membership,
             List<WorkoutLog> workouts,
             List<FoodLog> todayFoodLogs,
             List<Attendance> attendance,
