@@ -11,7 +11,6 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 
 @Data
@@ -30,7 +29,6 @@ public class TrainerSessionDto {
     private TrainerProfileDto trainer;
     
     @NotNull(message = "Session date is required")
-    @FutureOrPresent(message = "Session date must be today or in the future")
     private LocalDate sessionDate;
     
     @NotNull(message = "Start time is required")
