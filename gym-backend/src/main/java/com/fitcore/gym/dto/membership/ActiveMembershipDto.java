@@ -29,4 +29,8 @@ public class ActiveMembershipDto {
     private LocalDate startDate;
     private LocalDate endDate;
     private MembershipStatus status;
+    private String effectiveStatus;
+    private long remainingDays;
+    private LocalDate serverDate;
+    private String timeZone;
 }
