@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarPlus, History, IdCard, UserRoundCheck, UsersRound } from 'lucide-react';
 import Badge from '../components/common/Badge';
@@ -13,7 +13,6 @@ import FormField from '../components/forms/FormField';
 import DataTable from '../components/tables/DataTable';
 import { AuthContext } from '../context/auth-context';
 import { formatApiError, trainerService } from '../services/api';
-import { formatDate } from '../utils/formatters';
 
 const tabs = [
   { path: '/trainers/list', label: 'Trainers', icon: UsersRound },
@@ -24,7 +23,8 @@ const tabs = [
 
 const historyColumns = [
   { key: 'trainerName', header: 'Trainer Name' },
-  { key: 'date', header: 'Date', render: (row) => formatDate(row.date) },
+  { key: 'date', header: 'Date (UTC)', render: (row) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${row.date}T00:00:00Z`)) },
+  { key: 'time', header: 'Time (UTC)' },
   { key: 'status', header: 'Status', badge: true },
 ];
 
@@ -34,12 +34,13 @@ const Trainers = ({ section = 'list' }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
-  const [booking, setBooking] = useState({ trainerId: '', date: new Date().toISOString().slice(0, 10), time: '' });
+  const [booking, setBooking] = useState(() => ({ trainerId: '', date: new Date().toISOString().slice(0, 10), time: '' }));
   const [submitting, setSubmitting] = useState(false);
+  const submissionLock = useRef(false);
 
-  const loadTrainers = useCallback(async () => {
+  const loadTrainers = useCallback(async ({ preserveError = false } = {}) => {
     if (!user?.id) return;
-    setError('');
+    if (!preserveError) setError('');
     try {
       const [trainers, sessions] = await Promise.all([
         trainerService.getTrainers(),
@@ -48,7 +49,7 @@ const Trainers = ({ section = 'list' }) => {
       setData({ trainers, ...sessions });
       setBooking((current) => ({ ...current, trainerId: current.trainerId || String(trainers[0]?.id || '') }));
     } catch (requestError) {
-      setError(formatApiError(requestError, 'Unable to load trainers.'));
+      setError((current) => preserveError && current ? current : formatApiError(requestError, 'Unable to load trainers.'));
     }
   }, [user?.id]);
 
@@ -69,10 +70,25 @@ const Trainers = ({ section = 'list' }) => {
 
   const submitBooking = async (event) => {
     event.preventDefault();
-    if (submitting || !user?.id || !booking.trainerId || !booking.date || !booking.time) return;
+    if (submissionLock.current || !user?.id || !booking.trainerId || !booking.date || !booking.time) return;
+    setToast('');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(booking.date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(booking.time)) {
+      setError('Choose a valid UTC date and time.');
+      return;
+    }
     const [hours, minutes] = booking.time.split(':').map(Number);
-    const endHour = String((hours + 1) % 24).padStart(2, '0');
+    if (hours >= 23) {
+      setError('Sessions must start and finish on the same day in UTC. Choose a time before 23:00.');
+      return;
+    }
+    const start = Date.parse(`${booking.date}T${booking.time}:00Z`);
+    if (!Number.isFinite(start) || new Date(start).toISOString().slice(0, 10) !== booking.date || start <= Date.now()) {
+      setError('Choose a session start in the future (UTC).');
+      return;
+    }
+    const endHour = String(hours + 1).padStart(2, '0');
     const endTime = `${endHour}:${String(minutes || 0).padStart(2, '0')}`;
+    submissionLock.current = true;
     setSubmitting(true);
     setError('');
     try {
@@ -87,12 +103,14 @@ const Trainers = ({ section = 'list' }) => {
       await loadTrainers();
     } catch (requestError) {
       setError(formatApiError(requestError, 'Unable to book trainer session.'));
+      if (requestError.response?.status === 409) await loadTrainers({ preserveError: true });
     } finally {
+      submissionLock.current = false;
       setSubmitting(false);
     }
   };
 
-  if (error) return <StateBlock message={error} onAction={loadTrainers} />;
+  if (error && !data) return <StateBlock message={error} onAction={() => loadTrainers()} />;
   if (!data) return <LoadingSpinner label="Loading trainers" />;
 
   return (
@@ -104,6 +122,8 @@ const Trainers = ({ section = 'list' }) => {
         title="Trainer Module"
       />
       <ModuleTabs tabs={tabs} />
+
+      {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" role="alert">{error}</div> : null}
 
       {section === 'list' ? (
         <div className="grid gap-4 lg:grid-cols-3">
@@ -152,11 +172,12 @@ const Trainers = ({ section = 'list' }) => {
                 </div>
               </div>
               <div className="mt-5">
-                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Available Slots</p>
+                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Available Slots (UTC)</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {trainer.availableSlots.map((slot) => (
                     <Badge key={slot} tone="emerald">{slot}</Badge>
                   ))}
+                  {!trainer.availableSlots.length ? <p className="text-sm text-slate-500 dark:text-slate-400">No daily time restrictions published.</p> : null}
                 </div>
               </div>
             </Card>
@@ -168,6 +189,7 @@ const Trainers = ({ section = 'list' }) => {
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
             <h2 className="text-lg font-bold text-slate-950 dark:text-white">Session Booking</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">All dates and times use UTC. Sessions last one hour and must finish on the same day.</p>
             <form
               className="mt-4 space-y-4"
               onSubmit={submitBooking}
@@ -182,7 +204,7 @@ const Trainers = ({ section = 'list' }) => {
               <FormField
                 label="Select Date"
                 required
-                min={new Date().toLocaleDateString('en-CA')}
+                min={new Date().toISOString().slice(0, 10)}
                 name="date"
                 onChange={(event) => setBooking((current) => ({ ...current, date: event.target.value }))}
                 type="date"
@@ -208,6 +230,13 @@ const Trainers = ({ section = 'list' }) => {
                 <h2 className="text-2xl font-bold text-slate-950 dark:text-white">{selectedTrainer.name}</h2>
                 <p className="mt-1 text-slate-500 dark:text-slate-400">{selectedTrainer.specialization}</p>
                 <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{selectedTrainer.bio}</p>
+              </div>
+            </div>
+            <div className="mt-5">
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Published availability (UTC)</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {selectedTrainer.availableSlots.map((slot) => <Badge key={slot} tone="emerald">{slot}</Badge>)}
+                {!selectedTrainer.availableSlots.length ? <p className="text-sm text-slate-500 dark:text-slate-400">No daily time restrictions published. Availability is confirmed when you book.</p> : null}
               </div>
             </div>
           </Card>
