@@ -48,4 +48,9 @@ public class ActiveMembership {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    public boolean isCurrentOn(LocalDate date) {
+        return status == MembershipStatus.ACTIVE && startDate != null && endDate != null
+                && !date.isBefore(startDate) && date.isBefore(endDate);
+    }
 }
