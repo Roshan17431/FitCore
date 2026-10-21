@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 440" fill="none">
+<defs><linearGradient id="steel" x1="200" y1="80" x2="450" y2="350" gradientUnits="userSpaceOnUse"><stop stop-color="#426752"/><stop offset="1" stop-color="#16271e"/></linearGradient><linearGradient id="edge" x1="180" y1="180" x2="480" y2="360"><stop stop-color="#b7e8cc"/><stop offset="1" stop-color="#3f7656"/></linearGradient></defs>
+<g stroke="#365541" stroke-width="1" opacity=".6"><path d="M0 360 320 180 640 360M80 440 400 260 640 395M0 310 320 130 640 310M0 410 320 230 640 410M160 440 480 260M0 395 240 260"/></g>
+<ellipse cx="335" cy="350" rx="200" ry="35" fill="#06150d" opacity=".7"/>
+<g transform="rotate(-26 320 230)"><rect x="140" y="215" width="360" height="26" rx="7" fill="url(#edge)"/>
+<rect x="184" y="118" width="37" height="215" rx="17" fill="#233e2d" stroke="#6ba181" stroke-width="2"/>
+<rect x="214" y="96" width="53" height="258" rx="24" fill="url(#steel)" stroke="#7bb791" stroke-width="2"/>
+<rect x="405" y="118" width="37" height="215" rx="17" fill="#233e2d" stroke="#6ba181" stroke-width="2"/>
+<rect x="368" y="96" width="53" height="258" rx="24" fill="url(#steel)" stroke="#7bb791" stroke-width="2"/>
+<path d="M230 117v217M384 117v217" stroke="#afdfbc" stroke-width="2" opacity=".55"/>
+<path d="M285 222h60" stroke="#d8f2e2" stroke-width="2" stroke-dasharray="2 5"/>
+</g>
+<circle cx="503" cy="112" r="34" stroke="#4b8160"/><path d="m490 112 9 9 17-20" stroke="#8ee0af" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
