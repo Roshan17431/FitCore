@@ -1,61 +1,25 @@
+import { useId } from 'react';
 import { cx } from '../../utils/formatters';
 
-const FormField = ({
-  className,
-  error,
-  icon: Icon,
-  label,
-  name,
-  onChange,
-  options,
-  type = 'text',
-  value,
-  ...props
-}) => (
-  <label className={cx('block', className)}>
-    <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
-    <span className="relative block">
-      {Icon ? (
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      ) : null}
-      {options ? (
-        <select
-          className={cx(
-            'h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white',
-            Icon && 'pl-9',
-          )}
-          name={name}
-          onChange={onChange}
-          value={value}
-          {...props}
-        >
-          {options.map((option) => {
-            const optionValue = typeof option === 'string' ? option : option.value;
-            const optionLabel = typeof option === 'string' ? option : option.label;
-
-            return (
-            <option key={optionValue} value={optionValue}>
-              {optionLabel}
-            </option>
-            );
-          })}
-        </select>
-      ) : (
-        <input
-          className={cx(
-            'h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white',
-            Icon && 'pl-9',
-          )}
-          name={name}
-          onChange={onChange}
-          type={type}
-          value={value}
-          {...props}
-        />
-      )}
-    </span>
-    {error ? <span className="mt-1 block text-sm text-rose-600 dark:text-rose-400">{error}</span> : null}
-  </label>
-);
-
+const FormField = ({ className, error, icon: Icon, label, name, onChange, options, type = 'text', value, id, ...props }) => {
+  const generatedId = useId();
+  const inputId = id || generatedId;
+  const errorId = `${inputId}-error`;
+  const common = {
+    ...props, id: inputId, name, onChange, value,
+    'aria-invalid': error ? true : props['aria-invalid'],
+    'aria-describedby': [props['aria-describedby'], error ? errorId : null].filter(Boolean).join(' ') || undefined,
+    className: cx('min-h-11 w-full min-w-0 rounded-xl border border-control-line bg-surface px-3 py-2 text-sm text-ink transition focus:border-focus focus:outline-2 focus:outline-focus', Icon && 'pl-10', error && 'border-rose-600'),
+  };
+  return (
+    <div className={cx('min-w-0', className)}>
+      <label htmlFor={inputId} className="mb-2 block text-sm font-semibold text-ink">{label}</label>
+      <div className="relative">
+        {Icon ? <Icon aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" /> : null}
+        {options ? <select {...common}>{options.map((option) => { const v = typeof option === 'string' ? option : option.value; return <option key={v} value={v}>{typeof option === 'string' ? option : option.label}</option>; })}</select> : <input {...common} type={type} />}
+      </div>
+      {error ? <p id={errorId} className="mt-1.5 text-sm text-rose-700 dark:text-rose-300">{error}</p> : null}
+    </div>
+  );
+};
 export default FormField;
