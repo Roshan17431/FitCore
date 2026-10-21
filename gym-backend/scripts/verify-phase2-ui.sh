@@ -221,6 +221,36 @@ if ! (
   tail -n 30 "$artifact_dir/integrated.log" >&2
   exit 1
 fi
+# Optional Phase 3 UI checks use only this harness-owned disposable database and services.
+if [[ "${FITCORE_VERIFY_PHASE3_UI:-false}" == true ]]; then
+  "$node_bin" --input-type=module - >"$artifact_dir/phase3-fixture.log" 2>&1 <<'NODE'
+const response = await fetch('http://127.0.0.1:18082/api/auth/register', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ fullName: 'Local Phase 3 Admin', email: 'phase3-admin@example.invalid', password: 'Phase3-Local-Only!Verify26', fitnessGoal: 'Local verification' }),
+});
+if (!response.ok) throw new Error(`Local fixture registration failed: ${response.status}`);
+console.log('Disposable local administrator fixture registered; response credentials not logged.');
+NODE
+  docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
+    --set ON_ERROR_STOP=1 >>"$artifact_dir/phase3-fixture.log" 2>&1 <<'SQL'
+BEGIN;
+UPDATE users SET role = 'ADMIN' WHERE email = 'phase3-admin@example.invalid';
+DO $$ BEGIN
+  IF (SELECT count(*) FROM users WHERE email = 'phase3-admin@example.invalid' AND role = 'ADMIN') <> 1 THEN
+    RAISE EXCEPTION 'Local administrator fixture setup failed';
+  END IF;
+END $$;
+COMMIT;
+SQL
+  if ! (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/phase3-integrated.pw.js"
+  ) >"$artifact_dir/phase3-integrated.log" 2>&1; then
+    echo 'Phase 3 integrated UI verification failed; inspect phase3-integrated.log.' >&2
+    tail -n 15 "$artifact_dir/phase3-integrated.log" >&2
+    exit 1
+  fi
+fi
 kill -0 "$backend_pid" && kill -0 "$vite_pid"
 docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
   --set ON_ERROR_STOP=1 >"$artifact_dir/db-final-state.log" 2>&1 <<'SQL'
