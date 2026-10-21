@@ -1,8 +1,9 @@
 import { useContext, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Dumbbell, Lock, Mail, Target, User } from 'lucide-react';
+import { Lock, Mail, Target, User } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
+import AuthLayout from '../layouts/AuthLayout';
 import FormField from '../components/forms/FormField';
 import { AuthContext } from '../context/auth-context';
 
@@ -72,18 +73,16 @@ const Register = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6">
-      <Card className="w-full max-w-xl p-6 sm:p-8">
+    <AuthLayout>
+      <Card className="w-full border-0 bg-transparent p-0 shadow-none sm:p-0">
         <div className="mb-8">
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500 text-white">
-            <Dumbbell className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Create Account</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Set up your member profile and training goal.</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[.18em] text-brand">Start your next chapter</p>
+          <h1 className="text-3xl font-semibold sm:text-4xl text-ink">Create Account</h1>
+          <p className="mt-2 text-sm text-muted">Set up your member profile and training goal.</p>
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
+          <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
             {error}
           </div>
         ) : null}
@@ -144,14 +143,14 @@ const Register = () => {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-6 text-center text-sm text-muted">
           Already have an account?{' '}
-          <Link className="font-semibold text-emerald-600 dark:text-emerald-300" to="/login">
+          <Link className="font-semibold text-brand" to="/login">
             Sign in
           </Link>
         </p>
       </Card>
-    </main>
+    </AuthLayout>
   );
 };
 

@@ -1,8 +1,9 @@
 import { useContext, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Dumbbell, Mail } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
+import AuthLayout from '../layouts/AuthLayout';
 import FormField from '../components/forms/FormField';
 import { AuthContext } from '../context/auth-context';
 
@@ -38,14 +39,12 @@ const ForgotPassword = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 dark:bg-slate-950 sm:px-6">
-      <Card className="w-full max-w-md p-6 sm:p-8">
+    <AuthLayout>
+      <Card className="w-full border-0 bg-transparent p-0 shadow-none sm:p-0">
         <div className="mb-8">
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500 text-white">
-            <Dumbbell className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-white">Forgot Password</h1>
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Email recovery is not configured yet. Contact your gym administrator for help resetting your password.</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[.18em] text-brand">Account recovery</p>
+          <h1 className="text-3xl font-semibold sm:text-4xl text-ink">Forgot Password</h1>
+          <p className="mt-2 text-sm text-muted">Email recovery is not configured yet. Contact your gym administrator for help resetting your password.</p>
         </div>
 
         {error ? (
@@ -54,7 +53,7 @@ const ForgotPassword = () => {
           </div>
         ) : null}
         {message ? (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+          <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-brand-soft px-3 py-2 text-sm font-medium text-brand dark:border-emerald-500/30">
             {message}
           </div>
         ) : null}
@@ -75,13 +74,13 @@ const ForgotPassword = () => {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-          <Link className="font-semibold text-emerald-600 dark:text-emerald-300" to="/login">
+        <p className="mt-6 text-center text-sm text-muted">
+          <Link className="font-semibold text-brand" to="/login">
             Back to login
           </Link>
         </p>
       </Card>
-    </main>
+    </AuthLayout>
   );
 };
 
