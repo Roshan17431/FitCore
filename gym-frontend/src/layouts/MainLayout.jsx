@@ -1,22 +1,9 @@
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import {
-  Apple,
-  Bell,
-  ClipboardCheck,
-  CreditCard,
-  Dumbbell,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Search,
-  ShieldCheck,
-  TrendingUp,
-  UserCircle,
-  UsersRound,
-  X,
-} from 'lucide-react';
+import { Apple, Bell, ClipboardCheck, CreditCard, Dumbbell, LayoutDashboard, LogOut, Menu, Search, ShieldCheck, TrendingUp, UsersRound } from 'lucide-react';
 import Button from '../components/common/Button';
+import Brand from '../components/common/Brand';
+import Avatar from '../components/common/Avatar';
 import Modal from '../components/common/Modal';
 import NotificationList from '../components/dashboard/NotificationList';
 import ThemeToggle from '../components/common/ThemeToggle';
@@ -47,23 +34,20 @@ const routeTitles = [
   { match: '/dashboard', title: 'Dashboard Overview' },
 ];
 
-const SidebarLink = ({ item, onClick }) => (
-  <NavLink
-    className={({ isActive }) =>
-      cx(
-        'flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition',
-        isActive
-          ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/25'
-          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
-      )
-    }
-    onClick={onClick}
-    to={item.path}
-  >
-    <item.icon className="h-5 w-5 shrink-0" />
-    <span>{item.label}</span>
-  </NavLink>
-);
+const SidebarLink = ({ item, onClick }) => {
+  const { pathname } = useLocation();
+  const active = pathname === item.path || (item.path !== '/dashboard' && pathname.split('/')[1] === item.path.split('/')[1]);
+  return <NavLink to={item.path} onClick={onClick} aria-current={active ? 'page' : undefined} className={cx('flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition', active ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-alt hover:text-ink')}><item.icon aria-hidden="true" className="h-[18px] w-[18px] shrink-0" /><span>{item.label}</span></NavLink>;
+};
+const SidebarBody = ({ items, user, logout, onNavigate }) => <>
+  <Brand />
+  <p className="mb-3 mt-10 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-muted">Workspace</p>
+  <nav aria-label="Primary navigation" className="flex flex-1 flex-col gap-1.5">{items.map(item => <SidebarLink item={item} key={item.path} onClick={onNavigate} />)}</nav>
+  <div className="mt-8 border-t border-line pt-5">
+    <div className="flex items-center gap-3"><Avatar name={user?.fullName} className="h-10 w-10 [&_span]:text-sm" /><div className="min-w-0"><p className="truncate text-sm font-semibold text-ink">{user?.fullName}</p><p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted">{user?.role}</p></div></div>
+    <Button className="mt-4 w-full" icon={LogOut} onClick={logout} variant="outline">Sign Out</Button>
+  </div>
+</>;
 
 const MainLayout = () => {
   const { logout, user } = useContext(AuthContext);
@@ -101,106 +85,46 @@ const MainLayout = () => {
     }
   };
 
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) setSidebarOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
+
   return (
-    <div className="min-h-screen text-slate-950 dark:text-white">
-      <div
-        className={cx(
-          'fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-sm transition lg:hidden',
-          sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-        onClick={() => setSidebarOpen(false)}
-      />
-
-      <aside
-        className={cx(
-          'fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-200 bg-white/95 p-4 shadow-xl transition-transform dark:border-slate-800 dark:bg-slate-950/95 lg:translate-x-0 lg:shadow-none',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-        )}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <Link className="flex items-center gap-3" to="/dashboard">
-            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-500 text-white">
-              <Dumbbell className="h-6 w-6" />
-            </span>
-            <span>
-              <span className="block text-lg font-bold">FitCore</span>
-              <span className="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">
-                Gym Management
-              </span>
-            </span>
-          </Link>
-          <Button aria-label="Close navigation" icon={X} onClick={() => setSidebarOpen(false)} size="icon" variant="ghost" className="lg:hidden" />
-        </div>
-
-        <nav className="mt-8 flex flex-1 flex-col gap-1">
-          {visibleNavigation.map((item) => (
-            <SidebarLink item={item} key={item.path} onClick={() => setSidebarOpen(false)} />
-          ))}
-        </nav>
-
-        <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-              <UserCircle className="h-6 w-6" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{user?.fullName}</p>
-              <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{user?.role}</p>
-            </div>
-          </div>
-          <Button className="mt-3 w-full" icon={LogOut} onClick={logout} variant="outline">
-            Sign Out
-          </Button>
-        </div>
+    <div className="min-h-dvh text-ink">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <aside aria-label="Workspace sidebar" className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col overflow-y-auto border-r border-line bg-surface px-5 py-7 lg:flex">
+        <SidebarBody items={visibleNavigation} user={user} logout={logout} />
       </aside>
-
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80 sm:px-6">
+      <div className="min-w-0 lg:pl-64">
+        <header className="sticky top-0 z-30 border-b border-line bg-surface/95 px-4 py-4 backdrop-blur-lg sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <Button aria-label="Open navigation" icon={Menu} onClick={() => setSidebarOpen(true)} size="icon" variant="outline" className="lg:hidden" />
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-slate-500 dark:text-slate-400">Hello, {firstName}</p>
-                <h1 className="truncate text-lg font-bold text-slate-950 dark:text-white sm:text-xl">{pageTitle}</h1>
-              </div>
+              <Button aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={sidebarOpen} icon={Menu} onClick={() => setSidebarOpen(true)} size="icon" variant="outline" className="lg:hidden" />
+              <div className="min-w-0"><p className="text-xs font-medium text-muted">Hello, {firstName}</p><p className="truncate text-sm font-semibold text-ink sm:text-base">{pageTitle}</p></div>
             </div>
-
-            <div className="relative hidden min-w-64 items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 md:flex">
-              <Search className="mr-2 h-4 w-4" />
-              <input aria-label="Search pages" placeholder="Search pages" className="min-w-0 bg-transparent outline-none" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setQuery(''); }} />
-              {query.trim() ? <div className="absolute inset-x-0 top-full mt-2 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                {searchResults.length ? searchResults.map((item) => <Link className="block rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800" key={item.path} to={item.path} onClick={() => setQuery('')}>{item.label}</Link>) : <p className="p-2">No matching pages.</p>}
+            <div role="search" className="relative hidden w-60 shrink-0 lg:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setQuery(''); }}>
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-muted" />
+              <input type="search" aria-label="Search pages" aria-controls={query.trim() ? 'page-search-results' : undefined} placeholder="Find a page…" className="h-11 w-full rounded-xl border border-control-line bg-canvas pl-10 pr-3 text-sm text-ink" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setQuery(''); if (event.key === 'ArrowDown') { event.preventDefault(); document.querySelector('#page-search-results a')?.focus(); } }} />
+              {query.trim() ? <div id="page-search-results" className="absolute inset-x-0 top-full mt-2 rounded-xl border border-line bg-surface p-2 shadow-panel" onKeyDown={(event) => { if (event.key === 'Escape') { setQuery(''); event.currentTarget.parentElement.querySelector('input').focus(); } }}>
+                {searchResults.length ? searchResults.map(item => <Link className="block rounded-lg p-3 text-sm hover:bg-surface-alt" key={item.path} to={item.path} onClick={() => setQuery('')}>{item.label}</Link>) : <p role="status" className="p-2 text-sm text-muted">No matching pages.</p>}
               </div> : null}
             </div>
-
-            <div className="flex items-center gap-2">
-              <Button aria-label="Notifications" icon={Bell} isLoading={notificationsLoading} onClick={openNotifications} size="icon" variant="outline" />
-              <ThemeToggle />
-            </div>
+            <div className="flex shrink-0 items-center gap-2"><Button aria-label="Notifications" icon={Bell} isLoading={notificationsLoading} onClick={openNotifications} size="icon" variant="outline" /><ThemeToggle /></div>
           </div>
         </header>
-
-        <main className="mx-auto flex min-h-[calc(100vh-72px)] w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-          <div className="animate-fade-up flex-1">
-            <Outlet />
-          </div>
-
-          <footer className="mt-10 flex flex-col gap-2 border-t border-slate-200 py-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-            <p>FitCore Gym Management System</p>
-            <div className="flex flex-wrap gap-4">
-              <a href="mailto:support@fitcore.test">support@fitcore.test</a>
-              <a href="tel:+15550192500">+1 555 019 2500</a>
-              <span>@fitcore</span>
-            </div>
-          </footer>
+        <main id="main-content" tabIndex={-1} className="mx-auto flex min-h-[calc(100dvh-80px)] w-full max-w-[1440px] flex-col px-4 py-7 outline-none sm:px-6 lg:px-8 lg:py-9">
+          <div className="animate-fade-up min-w-0 flex-1"><Outlet /></div>
+          <footer className="mt-12 flex flex-col gap-2 border-t border-line py-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between"><p className="font-semibold">FitCore · Your fitness workspace</p><p>Train with purpose. Track your progress.</p></footer>
         </main>
       </div>
+      <Modal drawer isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} title="Main navigation"><SidebarBody items={visibleNavigation} user={user} logout={logout} onNavigate={() => setSidebarOpen(false)} /></Modal>
       <Modal isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} title="Notifications">
         {notificationsLoading ? <p role="status">Loading notifications...</p> : notificationError ? <p role="alert">{notificationError}</p> : <NotificationList notifications={notifications} />}
       </Modal>
     </div>
   );
 };
-
 export default MainLayout;
-
