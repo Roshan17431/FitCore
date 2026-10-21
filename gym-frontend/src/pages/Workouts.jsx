@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
+import ExerciseMedia from '../components/common/ExerciseMedia';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -137,29 +138,29 @@ const Workouts = ({ section = 'library' }) => {
           {filteredLibrary.map((group) => (
             <section className="space-y-3" key={group.category}>
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-slate-950 dark:text-white">{group.category}</h2>
+                <h2 className="text-lg font-bold text-ink">{group.category}</h2>
                 <Badge>{group.exercises.length} exercises</Badge>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {group.exercises.map((exercise) => (
                   <Card className="overflow-hidden p-0" key={exercise.id}>
-                    <img alt={exercise.name} className="h-44 w-full object-cover" src={exercise.image} />
+                    <ExerciseMedia name={exercise.name} />
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-3">
-                        <h3 className="text-base font-bold text-slate-950 dark:text-white">{exercise.name}</h3>
+                        <h3 className="text-base font-bold text-ink">{exercise.name}</h3>
                         <Badge tone={exercise.difficulty === 'Advanced' ? 'rose' : exercise.difficulty === 'Intermediate' ? 'amber' : 'emerald'}>
                           {exercise.difficulty}
                         </Badge>
                       </div>
-                      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{exercise.description}</p>
+                      <p className="mt-2 text-sm text-muted">{exercise.description}</p>
                       <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
-                          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Sets</p>
-                          <p className="font-bold text-slate-950 dark:text-white">{exercise.sets}</p>
+                        <div className="rounded-lg bg-surface-alt p-3">
+                          <p className="text-xs font-semibold uppercase text-muted">Sets</p>
+                          <p className="font-bold text-ink">{exercise.sets}</p>
                         </div>
-                        <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
-                          <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Reps</p>
-                          <p className="font-bold text-slate-950 dark:text-white">{exercise.reps}</p>
+                        <div className="rounded-lg bg-surface-alt p-3">
+                          <p className="text-xs font-semibold uppercase text-muted">Reps</p>
+                          <p className="font-bold text-ink">{exercise.reps}</p>
                         </div>
                       </div>
                     </div>
@@ -177,23 +178,23 @@ const Workouts = ({ section = 'library' }) => {
             <Card className="flex min-h-80 flex-col" key={plan.level}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-950 dark:text-white">{plan.level}</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{plan.duration}</p>
+                  <h2 className="text-xl font-bold text-ink">{plan.level}</h2>
+                  <p className="mt-1 text-sm text-muted">{plan.duration}</p>
                 </div>
                 <Timer className="h-5 w-5 text-emerald-500" />
               </div>
               <div className="mt-6">
-                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Weekly Schedule</p>
-                <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <p className="text-sm font-bold uppercase text-muted">Weekly Schedule</p>
+                <ul className="mt-3 space-y-2 text-sm text-muted">
                   {plan.schedule.map((item) => (
-                    <li className="rounded-lg bg-slate-50 px-3 py-2 dark:bg-slate-800/70" key={item}>
+                    <li className="rounded-lg bg-surface-alt px-3 py-2" key={item}>
                       {item}
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="mt-6">
-                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Exercises</p>
+                <p className="text-sm font-bold uppercase text-muted">Exercises</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {plan.exercises.map((exercise) => (
                     <Badge key={exercise} tone="sky">{exercise}</Badge>
@@ -214,12 +215,12 @@ const Workouts = ({ section = 'library' }) => {
       {section === 'tracker' ? (
         <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
           <Card>
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{data.selectedPlan ? `${data.selectedPlan.level} Plan` : 'Completion Percentage'}</p>
-            <p className="mt-2 text-5xl font-bold text-slate-950 dark:text-white">{completion}%</p>
-            <div className="mt-5 h-3 rounded-full bg-slate-100 dark:bg-slate-800">
+            <p className="text-sm font-semibold text-muted">{data.selectedPlan ? `${data.selectedPlan.level} Plan` : 'Completion Percentage'}</p>
+            <p className="mt-2 text-5xl font-bold text-ink">{completion}%</p>
+            <div className="mt-5 h-3 rounded-full bg-surface-alt">
               <div className="h-3 rounded-full bg-emerald-500 transition-all" style={{ width: `${completion}%` }} />
             </div>
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">Track sets, reps, and completed exercises for today's plan.</p>
+            <p className="mt-4 text-sm text-muted">Track sets, reps, and completed exercises for today's plan.</p>
           </Card>
 
           <div className="space-y-3">
@@ -227,27 +228,27 @@ const Workouts = ({ section = 'library' }) => {
               <Card className="grid gap-4 sm:grid-cols-[1fr_auto]" key={exercise.id}>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-bold text-slate-950 dark:text-white">{exercise.name}</h2>
+                    <h2 className="text-base font-bold text-ink">{exercise.name}</h2>
                     {exercise.complete ? <Badge tone="emerald">Complete</Badge> : <Badge tone="amber">Pending</Badge>}
                   </div>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-sm text-muted">
                     Target: {exercise.targetSets} sets x {exercise.targetReps} reps
                   </p>
                   <div className="mt-4 grid max-w-sm grid-cols-2 gap-3">
-                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                    <label className="text-sm font-semibold text-muted">
                       Sets
                       <input
-                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-950"
+                        className="mt-1 h-10 w-full rounded-lg border border-line bg-surface px-3"
                         min="0"
                         onChange={(event) => updateTracker(exercise.id, 'sets', Number(event.target.value))}
                         type="number"
                         value={exercise.sets}
                       />
                     </label>
-                    <label className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                    <label className="text-sm font-semibold text-muted">
                       Reps
                       <input
-                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 dark:border-slate-800 dark:bg-slate-950"
+                        className="mt-1 h-10 w-full rounded-lg border border-line bg-surface px-3"
                         min="0"
                         onChange={(event) => updateTracker(exercise.id, 'reps', Number(event.target.value))}
                         type="number"

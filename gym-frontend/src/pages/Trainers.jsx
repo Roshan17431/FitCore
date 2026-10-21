@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarPlus, History, IdCard, UserRoundCheck, UsersRound } from 'lucide-react';
+import Avatar from '../components/common/Avatar';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -129,12 +130,12 @@ const Trainers = ({ section = 'list' }) => {
         <div className="grid gap-4 lg:grid-cols-3">
           {data.trainers.map((trainer) => (
             <Card className="overflow-hidden p-0" key={trainer.id}>
-              <img alt={trainer.name} className="h-60 w-full object-cover" src={trainer.photo} />
+              <Avatar name={trainer.name} className="h-48 w-full rounded-none" src={trainer.photo} />
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-slate-950 dark:text-white">{trainer.name}</h2>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{trainer.specialization}</p>
+                    <h2 className="text-lg font-bold text-ink">{trainer.name}</h2>
+                    <p className="mt-1 text-sm text-muted">{trainer.specialization}</p>
                   </div>
                   <Badge tone="emerald">{trainer.experience}</Badge>
                 </div>
@@ -155,16 +156,16 @@ const Trainers = ({ section = 'list' }) => {
           {data.trainers.map((trainer) => (
             <Card key={trainer.id}>
               <div className="flex gap-4">
-                <img alt={trainer.name} className="h-20 w-20 rounded-lg object-cover" src={trainer.photo} />
+                <Avatar name={trainer.name} className="h-20 w-20" src={trainer.photo} />
                 <div className="min-w-0">
-                  <h2 className="text-xl font-bold text-slate-950 dark:text-white">{trainer.name}</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{trainer.specialization}</p>
+                  <h2 className="text-xl font-bold text-ink">{trainer.name}</h2>
+                  <p className="mt-1 text-sm text-muted">{trainer.specialization}</p>
                   <Badge className="mt-2" tone="sky">{trainer.experience}</Badge>
                 </div>
               </div>
-              <p className="mt-5 text-sm leading-6 text-slate-600 dark:text-slate-300">{trainer.bio}</p>
+              <p className="mt-5 text-sm leading-6 text-muted">{trainer.bio}</p>
               <div className="mt-5">
-                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Certifications</p>
+                <p className="text-sm font-bold uppercase text-muted">Certifications</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {trainer.certifications.map((certification) => (
                     <Badge key={certification}>{certification}</Badge>
@@ -172,12 +173,12 @@ const Trainers = ({ section = 'list' }) => {
                 </div>
               </div>
               <div className="mt-5">
-                <p className="text-sm font-bold uppercase text-slate-500 dark:text-slate-400">Available Slots (UTC)</p>
+                <p className="text-sm font-bold uppercase text-muted">Available Slots (UTC)</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {trainer.availableSlots.map((slot) => (
                     <Badge key={slot} tone="emerald">{slot}</Badge>
                   ))}
-                  {!trainer.availableSlots.length ? <p className="text-sm text-slate-500 dark:text-slate-400">No daily time restrictions published.</p> : null}
+                  {!trainer.availableSlots.length ? <p className="text-sm text-muted">No daily time restrictions published.</p> : null}
                 </div>
               </div>
             </Card>
@@ -188,8 +189,8 @@ const Trainers = ({ section = 'list' }) => {
       {section === 'booking' && selectedTrainer ? (
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Session Booking</h2>
-            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">All dates and times use UTC. Sessions last one hour and must finish on the same day.</p>
+            <h2 className="text-lg font-bold text-ink">Session Booking</h2>
+            <p className="mt-2 text-sm text-muted">All dates and times use UTC. Sessions last one hour and must finish on the same day.</p>
             <form
               className="mt-4 space-y-4"
               onSubmit={submitBooking}
@@ -225,18 +226,18 @@ const Trainers = ({ section = 'list' }) => {
 
           <Card>
             <div className="flex flex-col gap-4 sm:flex-row">
-              <img alt={selectedTrainer.name} className="h-32 w-32 rounded-lg object-cover" src={selectedTrainer.photo} />
+              <Avatar name={selectedTrainer.name} className="h-32 w-32" src={selectedTrainer.photo} />
               <div>
-                <h2 className="text-2xl font-bold text-slate-950 dark:text-white">{selectedTrainer.name}</h2>
-                <p className="mt-1 text-slate-500 dark:text-slate-400">{selectedTrainer.specialization}</p>
-                <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{selectedTrainer.bio}</p>
+                <h2 className="text-2xl font-bold text-ink">{selectedTrainer.name}</h2>
+                <p className="mt-1 text-muted">{selectedTrainer.specialization}</p>
+                <p className="mt-4 text-sm leading-6 text-muted">{selectedTrainer.bio}</p>
               </div>
             </div>
             <div className="mt-5">
-              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Published availability (UTC)</p>
+              <p className="text-sm font-bold text-ink">Published availability (UTC)</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {selectedTrainer.availableSlots.map((slot) => <Badge key={slot} tone="emerald">{slot}</Badge>)}
-                {!selectedTrainer.availableSlots.length ? <p className="text-sm text-slate-500 dark:text-slate-400">No daily time restrictions published. Availability is confirmed when you book.</p> : null}
+                {!selectedTrainer.availableSlots.length ? <p className="text-sm text-muted">No daily time restrictions published. Availability is confirmed when you book.</p> : null}
               </div>
             </div>
           </Card>
