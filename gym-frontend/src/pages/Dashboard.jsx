@@ -83,8 +83,8 @@ const Dashboard = () => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Line dataKey="weight" name="Weight kg" stroke="#10b981" strokeWidth={3} type="monotone" />
-                <Line dataKey="bodyFat" name="Body Fat %" stroke="#0ea5e9" strokeWidth={3} type="monotone" />
+                <Line isAnimationActive={false} dataKey="weight" name="Weight kg" stroke="var(--chart-1)" strokeWidth={3} type="monotone" />
+                <Line isAnimationActive={false} dataKey="bodyFat" name="Body Fat %" stroke="var(--chart-2)" strokeWidth={3} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -97,7 +97,7 @@ const Dashboard = () => {
               <XAxis dataKey="label" tickLine={false} />
               <YAxis tickLine={false} width={34} />
               <Tooltip />
-              <Bar dataKey="completed" fill="#f59e0b" name="Completed %" radius={[8, 8, 0, 0]} />
+              <Bar isAnimationActive={false} dataKey="completed" fill="var(--chart-3)" name="Completed %" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -109,15 +109,15 @@ const Dashboard = () => {
             <AreaChart data={data.attendanceChart || []} margin={{ left: 0, right: 16, top: 8 }}>
               <defs>
                 <linearGradient id="attendanceFill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.45} />
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.04} />
+                  <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.45} />
+                  <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0.04} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.12} />
               <XAxis dataKey="label" tickLine={false} />
               <YAxis tickLine={false} width={34} />
               <Tooltip />
-              <Area dataKey="visits" fill="url(#attendanceFill)" name="Visits" stroke="#8b5cf6" strokeWidth={3} type="monotone" />
+              <Area isAnimationActive={false} dataKey="visits" fill="url(#attendanceFill)" name="Visits" stroke="var(--chart-4)" strokeWidth={3} type="monotone" />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
