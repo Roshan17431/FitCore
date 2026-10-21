@@ -297,7 +297,7 @@ const Admin = ({ section = 'dashboard' }) => {
                   <XAxis dataKey="label" tickLine={false} />
                   <YAxis tickLine={false} width={44} />
                   <Tooltip />
-                  <Line dataKey="members" stroke="#10b981" strokeWidth={3} type="monotone" />
+                  <Line isAnimationActive={false} dataKey="members" stroke="var(--chart-1)" strokeWidth={3} type="monotone" />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -308,7 +308,7 @@ const Admin = ({ section = 'dashboard' }) => {
                   <XAxis dataKey="label" tickLine={false} />
                   <YAxis tickLine={false} width={44} />
                   <Tooltip />
-                  <Bar dataKey="revenue" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                  <Bar isAnimationActive={false} dataKey="revenue" fill="var(--chart-3)" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -319,7 +319,7 @@ const Admin = ({ section = 'dashboard' }) => {
                   <XAxis dataKey="label" tickLine={false} />
                   <YAxis tickLine={false} width={44} />
                   <Tooltip />
-                  <Bar dataKey="visits" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                  <Bar isAnimationActive={false} dataKey="visits" fill="var(--chart-4)" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -332,7 +332,7 @@ const Admin = ({ section = 'dashboard' }) => {
       {section === 'trainers' ? (
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">{editingTrainer ? 'Edit Trainer' : 'Add Trainer'}</h2>
+            <h2 className="text-lg font-bold text-ink">{editingTrainer ? 'Edit Trainer' : 'Add Trainer'}</h2>
             <form className="mt-4 space-y-4" onSubmit={addTrainer}>
               <FormField
                 label="Trainer name"
@@ -384,7 +384,7 @@ const Admin = ({ section = 'dashboard' }) => {
       {section === 'memberships' ? (
         <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">{editingPlan ? 'Edit Plan' : 'Create Plan'}</h2>
+            <h2 className="text-lg font-bold text-ink">{editingPlan ? 'Edit Plan' : 'Create Plan'}</h2>
             <form className="mt-4 space-y-4" onSubmit={addPlan}>
               <FormField
                 label="Plan name"
@@ -431,8 +431,8 @@ const Admin = ({ section = 'dashboard' }) => {
         <div className="space-y-4">
           <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-950 dark:text-white">Attendance Management</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">View attendance records and generate operations reports.</p>
+              <h2 className="text-lg font-bold text-ink">Attendance Management</h2>
+              <p className="mt-1 text-sm text-muted">View attendance records and generate operations reports.</p>
             </div>
             <Button icon={FileText} onClick={() => {
               const rows = [['Member ID', 'Date', 'Check-In', 'Check-Out'], ...data.attendanceHistory.map((row) => [row.raw.userId, row.date, row.checkInTime, row.checkOutTime])];
@@ -466,7 +466,7 @@ const Admin = ({ section = 'dashboard' }) => {
           <FormField label="Role" options={['MEMBER', 'TRAINER', 'ADMIN']} value={editingUser.role} onChange={(event) => setEditingUser((current) => ({ ...current, role: event.target.value }))} />
           <FormField label="Fitness goal" value={editingUser.fitnessGoal || ''} onChange={(event) => setEditingUser((current) => ({ ...current, fitnessGoal: event.target.value }))} />
           <label className="flex gap-2 text-sm"><input type="checkbox" checked={editingUser.enabled} onChange={(event) => setEditingUser((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
-          {actionError ? <p role="alert" className="text-sm text-rose-600">{actionError}</p> : null}
+          {actionError ? <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{actionError}</p> : null}
           <Button type="submit" isLoading={submitting}>Save User</Button>
         </form> : null}
       </Modal>

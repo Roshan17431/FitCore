@@ -131,22 +131,22 @@ const Nutrition = ({ section = 'dashboard' }) => {
             <Card key={plan.category}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-950 dark:text-white">{plan.category}</h2>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{plan.calories} kcal daily target</p>
+                  <h2 className="text-xl font-bold text-ink">{plan.category}</h2>
+                  <p className="mt-1 text-sm text-muted">{plan.calories} kcal daily target</p>
                 </div>
                 <Badge tone="emerald">{plan.protein}g protein</Badge>
               </div>
               <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
-                  <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Carbs</p>
+                <div className="rounded-lg bg-surface-alt p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">Carbs</p>
                   <p className="font-bold">{plan.carbs}g</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
-                  <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Fats</p>
+                <div className="rounded-lg bg-surface-alt p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">Fats</p>
                   <p className="font-bold">{plan.fats}g</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70">
-                  <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Meals</p>
+                <div className="rounded-lg bg-surface-alt p-3">
+                  <p className="text-xs font-semibold uppercase text-muted">Meals</p>
                   <p className="font-bold">{plan.meals.length}</p>
                 </div>
               </div>
@@ -163,7 +163,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
       {section === 'food-logger' ? (
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Add Food</h2>
+            <h2 className="text-lg font-bold text-ink">Add Food</h2>
             <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={submitFood}>
               <FormField
                 className="sm:col-span-2"
@@ -195,14 +195,14 @@ const Nutrition = ({ section = 'dashboard' }) => {
 
           <div className="space-y-4">
             <Card>
-              <h2 className="text-lg font-bold text-slate-950 dark:text-white">Nutrition Facts</h2>
+              <h2 className="text-lg font-bold text-ink">Nutrition Facts</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {filteredFoods.length ? filteredFoods.map((food) => (
-                  <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800" key={food.id}>
+                  <div className="rounded-lg border border-line p-3" key={food.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-bold text-slate-950 dark:text-white">{food.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{food.serving}</p>
+                        <p className="font-bold text-ink">{food.name}</p>
+                        <p className="text-sm text-muted">{food.serving}</p>
                       </div>
                       <Button isLoading={saving} onClick={() => addFood(food)} size="sm" variant="outline">Log</Button>
                     </div>
@@ -214,26 +214,26 @@ const Nutrition = ({ section = 'dashboard' }) => {
                     </div>
                   </div>
                 )) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No matching food logs found.</p>
+                  <p className="text-sm text-muted">No matching food logs found.</p>
                 )}
               </div>
             </Card>
 
             <Card>
-              <h2 className="text-lg font-bold text-slate-950 dark:text-white">Food Log</h2>
+              <h2 className="text-lg font-bold text-ink">Food Log</h2>
               <div className="mt-4 space-y-3">
                 {foodLogs.length ? foodLogs.map((food) => (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/70" key={food.id}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-alt p-3" key={food.id}>
                     <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">{food.name}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="font-semibold text-ink">{food.name}</p>
+                      <p className="text-sm text-muted">
                         {food.protein}g protein, {food.carbs}g carbs, {food.fat}g fat
                       </p>
                     </div>
                     <Badge tone="amber">{food.calories} kcal</Badge>
                   </div>
                 )) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No foods logged today.</p>
+                  <p className="text-sm text-muted">No foods logged today.</p>
                 )}
               </div>
             </Card>
@@ -245,33 +245,33 @@ const Nutrition = ({ section = 'dashboard' }) => {
         <Card>
           <div className="grid gap-6 lg:grid-cols-[0.7fr_1.3fr]">
             <div>
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Daily Goal</p>
-              <p className="mt-2 text-5xl font-bold text-slate-950 dark:text-white">{calorieGoal}</p>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Consumed Calories: {consumedCalories}</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Remaining Calories: {remainingCalories}</p>
+              <p className="text-sm font-semibold text-muted">Daily Goal</p>
+              <p className="mt-2 text-5xl font-bold text-ink">{calorieGoal}</p>
+              <p className="mt-2 text-sm text-muted">Consumed Calories: {consumedCalories}</p>
+              <p className="text-sm text-muted">Remaining Calories: {remainingCalories}</p>
             </div>
             <div>
-              <div className="mb-2 flex justify-between text-sm font-semibold text-slate-600 dark:text-slate-300">
+              <div className="mb-2 flex justify-between text-sm font-semibold text-muted">
                 <span>Calorie progress</span>
                 <span>{percent(consumedCalories, calorieGoal)}%</span>
               </div>
-              <div className="h-4 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="h-4 rounded-full bg-surface-alt">
                 <div
                   className="h-4 rounded-full bg-emerald-500 transition-all"
                   style={{ width: `${Math.min(percent(consumedCalories, calorieGoal), 100)}%` }}
                 />
               </div>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Consumed</p>
+                <div className="rounded-lg bg-surface-alt p-4">
+                  <p className="text-sm font-semibold text-muted">Consumed</p>
                   <p className="text-xl font-bold">{consumedCalories}</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Remaining</p>
+                <div className="rounded-lg bg-surface-alt p-4">
+                  <p className="text-sm font-semibold text-muted">Remaining</p>
                   <p className="text-xl font-bold">{remainingCalories}</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Logged Foods</p>
+                <div className="rounded-lg bg-surface-alt p-4">
+                  <p className="text-sm font-semibold text-muted">Logged Foods</p>
                   <p className="text-xl font-bold">{foodLogs.length}</p>
                 </div>
               </div>

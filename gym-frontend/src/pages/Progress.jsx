@@ -109,7 +109,7 @@ const Progress = ({ section = 'weight' }) => {
       {section === 'weight' ? (
         <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Add Weight</h2>
+            <h2 className="text-lg font-bold text-ink">Add Weight</h2>
             <form className="mt-4 space-y-4" onSubmit={addWeight}>
               <FormField
                 label="Weight kg"
@@ -124,9 +124,9 @@ const Progress = ({ section = 'weight' }) => {
               />
               <Button icon={Plus} isLoading={saving} type="submit">Add Weight</Button>
             </form>
-            <div className="mt-6 rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Latest Weight</p>
-              <p className="mt-1 text-3xl font-bold text-slate-950 dark:text-white">{data.weightProgress.at(-1)?.weight || '--'} kg</p>
+            <div className="mt-6 rounded-lg bg-surface-alt p-4">
+              <p className="text-sm font-semibold text-muted">Latest Weight</p>
+              <p className="mt-1 text-3xl font-bold text-ink">{data.weightProgress.at(-1)?.weight || '--'} kg</p>
             </div>
           </Card>
 
@@ -138,7 +138,7 @@ const Progress = ({ section = 'weight' }) => {
                   <XAxis dataKey="label" tickLine={false} />
                   <YAxis tickLine={false} width={34} />
                   <Tooltip />
-                  <Line dataKey="weight" stroke="#10b981" strokeWidth={3} type="monotone" />
+                  <Line isAnimationActive={false} dataKey="weight" stroke="var(--chart-1)" strokeWidth={3} type="monotone" />
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -158,8 +158,8 @@ const Progress = ({ section = 'weight' }) => {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {measurementCards.map((item) => (
             <Card key={item.label}>
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
-              <p className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">{item.value}</p>
+              <p className="text-sm font-semibold text-muted">{item.label}</p>
+              <p className="mt-2 text-3xl font-bold text-ink">{item.value}</p>
             </Card>
           ))}
         </div>
@@ -168,7 +168,7 @@ const Progress = ({ section = 'weight' }) => {
       {section === 'bmi' ? (
         <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">BMI Calculator</h2>
+            <h2 className="text-lg font-bold text-ink">BMI Calculator</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Height cm"
@@ -187,8 +187,8 @@ const Progress = ({ section = 'weight' }) => {
             </div>
           </Card>
           <Card>
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">BMI Value</p>
-            <p className="mt-2 text-6xl font-bold text-slate-950 dark:text-white">{bmi.value || '--'}</p>
+            <p className="text-sm font-semibold text-muted">BMI Value</p>
+            <p className="mt-2 text-6xl font-bold text-ink">{bmi.value || '--'}</p>
             <div className="mt-4">
               <Badge tone={bmi.category === 'Normal' ? 'emerald' : 'amber'}>{bmi.category}</Badge>
             </div>
@@ -205,7 +205,7 @@ const Progress = ({ section = 'weight' }) => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Line dataKey="weight" stroke="#10b981" strokeWidth={3} type="monotone" />
+                <Line isAnimationActive={false} dataKey="weight" stroke="var(--chart-1)" strokeWidth={3} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -216,7 +216,7 @@ const Progress = ({ section = 'weight' }) => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Line dataKey="bodyFat" stroke="#f43f5e" strokeWidth={3} type="monotone" />
+                <Line isAnimationActive={false} dataKey="bodyFat" stroke="#f43f5e" strokeWidth={3} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -227,7 +227,7 @@ const Progress = ({ section = 'weight' }) => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Bar dataKey="completed" fill="#0ea5e9" radius={[8, 8, 0, 0]} />
+                <Bar isAnimationActive={false} dataKey="completed" fill="var(--chart-2)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
