@@ -106,8 +106,8 @@ const Attendance = ({ section = 'check-in' }) => {
                 <Badge tone={session.checkedIn ? 'emerald' : 'slate'}>
                   {session.checkedIn ? 'Checked In' : 'Ready'}
                 </Badge>
-                <h2 className="mt-4 text-2xl font-bold text-slate-950 dark:text-white">Member Attendance</h2>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Use the controls below for today's visit session.</p>
+                <h2 className="mt-4 text-2xl font-bold text-ink">Member Attendance</h2>
+                <p className="mt-2 text-sm text-muted">Use the controls below for today's visit session.</p>
               </div>
               <Clock className="h-6 w-6 text-emerald-500" />
             </div>
@@ -122,19 +122,19 @@ const Attendance = ({ section = 'check-in' }) => {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Current Session</h2>
+            <h2 className="text-lg font-bold text-ink">Current Session</h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Date</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(new Date())}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Date</p>
+                <p className="mt-1 font-bold text-ink">{formatDate(new Date())}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Check-In Time</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{session.checkInTime || '--'}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Check-In Time</p>
+                <p className="mt-1 font-bold text-ink">{session.checkInTime || '--'}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Check-Out Time</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{session.checkOutTime || '--'}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Check-Out Time</p>
+                <p className="mt-1 font-bold text-ink">{session.checkOutTime || '--'}</p>
               </div>
             </div>
           </Card>
@@ -152,7 +152,7 @@ const Attendance = ({ section = 'check-in' }) => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Bar dataKey="visits" fill="#10b981" radius={[8, 8, 0, 0]} />
+                <Bar isAnimationActive={false} dataKey="visits" fill="var(--chart-1)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -163,7 +163,7 @@ const Attendance = ({ section = 'check-in' }) => {
                 <XAxis dataKey="label" tickLine={false} />
                 <YAxis tickLine={false} width={34} />
                 <Tooltip />
-                <Line dataKey="visits" stroke="#0ea5e9" strokeWidth={3} type="monotone" />
+                <Line isAnimationActive={false} dataKey="visits" stroke="var(--chart-2)" strokeWidth={3} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>

@@ -113,23 +113,23 @@ const Membership = ({ section = 'plans' }) => {
       <ModuleTabs tabs={tabs} />
 
       {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" role="alert">{error}</div> : null}
-      <p className="text-sm text-slate-500 dark:text-slate-400">Membership dates use UTC. Access ends at the start of the expiry date.</p>
-      {upcomingMembership ? <p className="text-sm text-slate-600 dark:text-slate-300">An upcoming membership starts {formatMembershipDate(upcomingMembership.startDate)}. Another purchase or renewal is unavailable until that membership is current.</p> : null}
-      {section === 'plans' && data.active ? <p className="text-sm text-slate-600 dark:text-slate-300">Upgrade to a higher total package price and retain your current expiry date, {formatMembershipDate(data.active.expiryDate)}. No payment is processed for these membership actions.</p> : null}
+      <p className="text-sm text-muted">Membership dates use UTC. Access ends at the start of the expiry date.</p>
+      {upcomingMembership ? <p className="text-sm text-muted">An upcoming membership starts {formatMembershipDate(upcomingMembership.startDate)}. Another purchase or renewal is unavailable until that membership is current.</p> : null}
+      {section === 'plans' && data.active ? <p className="text-sm text-muted">Upgrade to a higher total package price and retain your current expiry date, {formatMembershipDate(data.active.expiryDate)}. No payment is processed for these membership actions.</p> : null}
 
       {section === 'plans' ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {data.plans.map((plan) => (
             <Card className="relative flex min-h-96 flex-col" key={plan.id}>
-              {plan.recommended ? <Badge className="absolute right-4 top-4" tone="emerald">Recommended</Badge> : null}
+              <div className="mb-4 min-h-7">{plan.recommended ? <Badge tone="emerald">Recommended</Badge> : null}</div>
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-slate-950 dark:text-white">{plan.name} Plan</h2>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{plan.duration} access package</p>
-                <p className="mt-5 text-4xl font-bold text-slate-950 dark:text-white">
+                <h2 className="text-xl font-bold text-ink">{plan.name} Plan</h2>
+                <p className="mt-2 text-sm text-muted">{plan.duration} access package</p>
+                <p className="mt-5 text-4xl font-bold text-ink">
                   {formatCurrency(plan.price)}
                 </p>
               </div>
-              <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+              <ul className="space-y-3 text-sm text-muted">
                 {plan.features.map((feature) => (
                   <li className="flex gap-2" key={feature}>
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
@@ -147,7 +147,7 @@ const Membership = ({ section = 'plans' }) => {
                 {renewalTarget && String(renewalTarget.planId) === String(plan.id) ? <Button disabled={submitting} icon={RotateCcw} onClick={() => submitPlanAction(plan, 'renewed')} variant="ghost">
                   Renew Plan
                 </Button> : null}
-                {data.active && String(data.active.planId) !== String(plan.id) && plan.price <= data.active.planPrice ? <p className="text-center text-sm text-slate-500 dark:text-slate-400">A higher total package price is required to upgrade.</p> : null}
+                {data.active && String(data.active.planId) !== String(plan.id) && plan.price <= data.active.planPrice ? <p className="text-center text-sm text-muted">A higher total package price is required to upgrade.</p> : null}
               </div>
             </Card>
           ))}
@@ -160,8 +160,8 @@ const Membership = ({ section = 'plans' }) => {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <Badge tone="emerald">{data.active.status}</Badge>
-                <h2 className="mt-4 text-3xl font-bold text-slate-950 dark:text-white">{data.active.plan} Plan</h2>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Current membership plan and lifecycle details.</p>
+                <h2 className="mt-4 text-3xl font-bold text-ink">{data.active.plan} Plan</h2>
+                <p className="mt-2 text-sm text-muted">Current membership plan and lifecycle details.</p>
               </div>
               <Button disabled={submitting} icon={RotateCcw} onClick={() => submitPlanAction({ id: data.active.planId, name: data.active.plan }, 'renewed')}>
                 Renew Plan
@@ -169,26 +169,26 @@ const Membership = ({ section = 'plans' }) => {
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Start Date</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatMembershipDate(data.active.startDate)}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Start Date</p>
+                <p className="mt-1 font-bold text-ink">{formatMembershipDate(data.active.startDate)}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Expiry Date</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatMembershipDate(data.active.expiryDate)}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Expiry Date</p>
+                <p className="mt-1 font-bold text-ink">{formatMembershipDate(data.active.expiryDate)}</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/70">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Remaining Days</p>
-                <p className="mt-1 font-bold text-slate-950 dark:text-white">{data.active.remainingDays}</p>
+              <div className="rounded-lg bg-surface-alt p-4">
+                <p className="text-sm font-semibold text-muted">Remaining Days</p>
+                <p className="mt-1 font-bold text-ink">{data.active.remainingDays}</p>
               </div>
             </div>
           </Card>
 
           <Card>
-            <h2 className="text-lg font-bold text-slate-950 dark:text-white">Included Benefits</h2>
+            <h2 className="text-lg font-bold text-ink">Included Benefits</h2>
             <div className="mt-6 space-y-3">
               {(data.active.features || []).map((item) => (
-                <div className="flex gap-2 rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-700 dark:bg-slate-800/70 dark:text-slate-200" key={item}>
+                <div className="flex gap-2 rounded-lg bg-surface-alt p-3 text-sm font-semibold text-ink" key={item}>
                   <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
                   <span>{item}</span>
                 </div>
