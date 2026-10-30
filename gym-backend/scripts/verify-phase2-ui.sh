@@ -119,16 +119,21 @@ binding="$(docker port "$container_id" 5432/tcp)"
 [[ "$binding" =~ ^127\.0\.0\.1:([0-9]+)$ ]] || { echo 'Database binding is not exclusively loopback.' >&2; exit 1; }
 postgres_port="${BASH_REMATCH[1]}"
 
+docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
+  --set ON_ERROR_STOP=1 --set "marker=fitcore-disposable:$container_id" <<'SQL'
+COMMENT ON DATABASE fitcore_phase2_e2e IS :'marker';
+SQL
+
 # The working directory is empty and config import is disabled; inherited application env is removed.
 (
   cd -- "$runtime_dir"
-  exec env -i PATH="$PATH" "$java_bin" -jar "$jar_path" \
+  exec env -i PATH="$PATH" FITCORE_TENANCY_TEST_TOKEN="$container_id" "$java_bin" -jar "$jar_path" \
     --server.address=127.0.0.1 --server.port=18082 \
     --spring.config.import= --spring.profiles.active=phase2-local-e2e \
     --spring.datasource.url="jdbc:postgresql://127.0.0.1:${postgres_port}/fitcore_phase2_e2e" \
     --spring.datasource.username=fitcore_phase2_e2e \
     --spring.datasource.password=fitcore-phase2-local-disposable-only \
-    --spring.jpa.hibernate.ddl-auto=create-drop --spring.jpa.show-sql=false \
+    --spring.flyway.enabled=true --spring.jpa.hibernate.ddl-auto=validate --spring.jpa.show-sql=false \
     --spring.sql.init.mode=never --aws.s3.enabled=false \
     --jwt.secret=fitcore-phase2-public-local-e2e-signing-key-for-disposable-verification-only-2026 \
     --jwt.expiration-ms=3600000 --cors.allowed-origins=http://127.0.0.1:5175
@@ -154,18 +159,28 @@ NODE
 docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
   --set ON_ERROR_STOP=1 --set "public_hash=$public_fixture_hash" >"$artifact_dir/seed.log" 2>&1 <<'SQL'
 BEGIN;
-INSERT INTO users (id, full_name, email, password_hash, role, fitness_goal, enabled, created_at, updated_at) VALUES
-('22222222-2222-2222-2222-222222222222', 'Phase 2 Member', 'phase2-member@e2e.test', :'public_hash', 'MEMBER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-('33333333-3333-3333-3333-333333333333', 'Phase 2 Other Member', 'phase2-other@e2e.test', :'public_hash', 'MEMBER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-('55555555-5555-5555-5555-555555555555', 'Alpha Coach', 'phase2-alpha@e2e.test', :'public_hash', 'TRAINER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-('66666666-6666-6666-6666-666666666666', 'Beta Coach', 'phase2-beta@e2e.test', :'public_hash', 'TRAINER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-INSERT INTO membership_plans (id, name, price, duration_months, recommended) VALUES
-(1, 'Basic', 29, 1, false), (2, 'Premium', 79, 3, true), (3, 'Elite', 149, 6, false);
-INSERT INTO membership_plan_features (plan_id, feature) VALUES
-(1, 'Gym floor access'), (2, 'Everything in Basic'), (3, 'Everything in Premium');
-INSERT INTO trainer_profiles (id, user_id, specialization, experience_years, bio, photo_url) VALUES
-(1, '55555555-5555-5555-5555-555555555555', 'Strength', 5, 'Local Alpha fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+'),
-(2, '66666666-6666-6666-6666-666666666666', 'Mobility', 4, 'Local Beta fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+');
+INSERT INTO gyms (id, name, slug, status, created_at, updated_at) VALUES
+('90000000-0000-0000-0000-000000000001', 'Browser fixture gym', 'browser-fixture', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+-- Public synthetic password/hash used only by this disposable browser fixture.
+INSERT INTO users (id, gym_id, full_name, email, password_hash, role, enabled, created_at, updated_at) VALUES
+('90000000-0000-0000-0000-000000000002', '90000000-0000-0000-0000-000000000001', 'Browser Fixture Owner', 'browser-owner@fixture.invalid', '$2y$10$rCG7lNQmE1JLMX3lAfxPY.xl3agde2dbjIFIhsAgWau.M.4e6GwFm', 'OWNER', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+UPDATE gyms SET primary_owner_user_id = '90000000-0000-0000-0000-000000000002' WHERE id = '90000000-0000-0000-0000-000000000001';
+INSERT INTO users (id, full_name, email, password_hash, role, fitness_goal, enabled, created_at, updated_at, gym_id) VALUES
+('22222222-2222-2222-2222-222222222222', 'Phase 2 Member', 'phase2-member@e2e.test', :'public_hash', 'MEMBER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '90000000-0000-0000-0000-000000000001'),
+('33333333-3333-3333-3333-333333333333', 'Phase 2 Other Member', 'phase2-other@e2e.test', :'public_hash', 'MEMBER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '90000000-0000-0000-0000-000000000001'),
+('55555555-5555-5555-5555-555555555555', 'Alpha Coach', 'phase2-alpha@e2e.test', :'public_hash', 'TRAINER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '90000000-0000-0000-0000-000000000001'),
+('66666666-6666-6666-6666-666666666666', 'Beta Coach', 'phase2-beta@e2e.test', :'public_hash', 'TRAINER', 'Local verification', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '90000000-0000-0000-0000-000000000001');
+INSERT INTO membership_plans (id, name, price, duration_months, recommended, gym_id) VALUES
+(1, 'Basic', 29, 1, false, '90000000-0000-0000-0000-000000000001'),
+(2, 'Premium', 79, 3, true, '90000000-0000-0000-0000-000000000001'),
+(3, 'Elite', 149, 6, false, '90000000-0000-0000-0000-000000000001');
+INSERT INTO membership_plan_features (plan_id, feature, gym_id) VALUES
+(1, 'Gym floor access', '90000000-0000-0000-0000-000000000001'),
+(2, 'Everything in Basic', '90000000-0000-0000-0000-000000000001'),
+(3, 'Everything in Premium', '90000000-0000-0000-0000-000000000001');
+INSERT INTO trainer_profiles (id, user_id, specialization, experience_years, bio, photo_url, gym_id) VALUES
+(1, '55555555-5555-5555-5555-555555555555', 'Strength', 5, 'Local Alpha fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+', '90000000-0000-0000-0000-000000000001'),
+(2, '66666666-6666-6666-6666-666666666666', 'Mobility', 4, 'Local Beta fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+', '90000000-0000-0000-0000-000000000001');
 SELECT setval(pg_get_serial_sequence('membership_plans', 'id'), 3, true);
 SELECT setval(pg_get_serial_sequence('trainer_profiles', 'id'), 2, true);
 COMMIT;
@@ -223,24 +238,12 @@ if ! (
 fi
 # Optional Phase 3 UI checks use only this harness-owned disposable database and services.
 if [[ "${FITCORE_VERIFY_PHASE3_UI:-false}" == true ]]; then
-  "$node_bin" --input-type=module - >"$artifact_dir/phase3-fixture.log" 2>&1 <<'NODE'
-const response = await fetch('http://127.0.0.1:18082/api/auth/register', {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ fullName: 'Local Phase 3 Admin', email: 'phase3-admin@example.invalid', password: 'Phase3-Local-Only!Verify26', fitnessGoal: 'Local verification' }),
-});
-if (!response.ok) throw new Error(`Local fixture registration failed: ${response.status}`);
-console.log('Disposable local administrator fixture registered; response credentials not logged.');
-NODE
+  # Final schema requires explicit gym ownership; do not use unaffiliated registration.
+  # This public synthetic BCrypt fixture matches Phase3-Local-Only!Verify26 in the browser runner.
   docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
-    --set ON_ERROR_STOP=1 >>"$artifact_dir/phase3-fixture.log" 2>&1 <<'SQL'
-BEGIN;
-UPDATE users SET role = 'ADMIN' WHERE email = 'phase3-admin@example.invalid';
-DO $$ BEGIN
-  IF (SELECT count(*) FROM users WHERE email = 'phase3-admin@example.invalid' AND role = 'ADMIN') <> 1 THEN
-    RAISE EXCEPTION 'Local administrator fixture setup failed';
-  END IF;
-END $$;
-COMMIT;
+    --set ON_ERROR_STOP=1 >"$artifact_dir/phase3-fixture.log" 2>&1 <<'SQL'
+INSERT INTO users (id, gym_id, full_name, email, password_hash, role, enabled, created_at, updated_at) VALUES
+('90000000-0000-0000-0000-000000000003', '90000000-0000-0000-0000-000000000001', 'Local Phase 3 Admin', 'phase3-admin@example.invalid', '$2y$10$rCG7lNQmE1JLMX3lAfxPY.xl3agde2dbjIFIhsAgWau.M.4e6GwFm', 'ADMIN', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 SQL
   if ! (
     cd -- "$frontend_dir"
