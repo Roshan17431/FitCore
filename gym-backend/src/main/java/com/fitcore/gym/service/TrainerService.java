@@ -69,7 +69,7 @@ public class TrainerService {
             throw new DuplicateResourceException("The trainer or member already has a session during this time");
         }
 
-        TrainerSession session = TrainerSession.builder()
+        TrainerSession session = TrainerSession.builder().gymId(member.getGymId())
                 .member(member)
                 .trainer(trainer)
                 .sessionDate(request.getSessionDate())

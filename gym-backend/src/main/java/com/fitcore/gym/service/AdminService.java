@@ -18,6 +18,7 @@ import com.fitcore.gym.entity.TrainerProfile;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.exception.BadRequestException;
 import com.fitcore.gym.exception.DuplicateResourceException;
+import com.fitcore.gym.exception.ForbiddenException;
 import com.fitcore.gym.exception.ResourceNotFoundException;
 import com.fitcore.gym.repository.ActiveMembershipRepository;
 import com.fitcore.gym.repository.AttendanceRepository;
@@ -26,7 +27,9 @@ import com.fitcore.gym.repository.TrainerProfileRepository;
 import com.fitcore.gym.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -101,6 +104,9 @@ public class AdminService {
     }
 
     public AdminUserDto updateUser(UUID userId, UserUpdateRequest request) {
+        if (request.getRole() == Role.OWNER) {
+            throw new BadRequestException("OWNER appointment requires a separate ownership workflow");
+        }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
@@ -124,6 +130,7 @@ public class AdminService {
         userRepository.save(user);
     }
 
+    @Transactional
     public TrainerProfileDto createTrainer(TrainerUpsertRequest request) {
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new BadRequestException("Password is required for new trainer accounts");
@@ -133,6 +140,7 @@ public class AdminService {
         }
 
         User trainerUser = User.builder()
+                .gymId(managedGymId())
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -143,6 +151,7 @@ public class AdminService {
         trainerUser = userRepository.save(trainerUser);
 
         TrainerProfile profile = TrainerProfile.builder()
+                .gymId(trainerUser.getGymId())
                 .user(trainerUser)
                 .specialization(request.getSpecialization())
                 .experienceYears(request.getExperienceYears() == null ? 0 : request.getExperienceYears())
@@ -187,6 +196,7 @@ public class AdminService {
 
     public MembershipPlanDto createMembershipPlan(MembershipPlanDto request) {
         MembershipPlan plan = MembershipPlan.builder()
+                .gymId(managedGymId())
                 .name(request.getName())
                 .price(request.getPrice())
                 .durationMonths(request.getDurationMonths())
@@ -220,6 +230,15 @@ public class AdminService {
         return attendanceRepository.findAllByOrderByCheckInTimeDesc().stream()
                 .map(trackingService::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    private UUID managedGymId() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof User account)
+                || account.getGymId() == null) {
+            throw new ForbiddenException("A gym assignment is required");
+        }
+        return account.getGymId();
     }
 
     private AdminUserDto mapUser(User user) {

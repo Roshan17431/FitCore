@@ -76,6 +76,7 @@ public class NutritionService {
 
         NutritionGoal goal = nutritionGoalRepository.findByUser(user).orElse(new NutritionGoal());
         goal.setUser(user);
+        goal.setGymId(user.getGymId());
         goal.setTargetCalories(request.getTargetCalories());
         goal.setTargetProtein(request.getTargetProtein());
         goal.setTargetCarbs(request.getTargetCarbs());
@@ -99,7 +100,7 @@ public class NutritionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        FoodLog log = FoodLog.builder()
+        FoodLog log = FoodLog.builder().gymId(user.getGymId())
                 .user(user)
                 .mealName(request.getMealName())
                 .mealType(request.getMealType())

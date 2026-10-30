@@ -31,7 +31,7 @@ public class TrackingService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        ProgressMetric metric = ProgressMetric.builder()
+        ProgressMetric metric = ProgressMetric.builder().gymId(user.getGymId())
                 .user(user)
                 .logDate(request.getLogDate() != null ? request.getLogDate() : LocalDate.now())
                 .weight(request.getWeight())
@@ -65,7 +65,7 @@ public class TrackingService {
             return mapToDto(openAttendance.get());
         }
 
-        Attendance attendance = Attendance.builder()
+        Attendance attendance = Attendance.builder().gymId(user.getGymId())
                 .user(user)
                 .checkInDate(LocalDate.now())
                 .checkInTime(LocalDateTime.now())

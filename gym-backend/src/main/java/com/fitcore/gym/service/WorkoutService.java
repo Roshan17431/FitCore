@@ -60,7 +60,7 @@ public class WorkoutService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        WorkoutLog workoutLog = WorkoutLog.builder()
+        WorkoutLog workoutLog = WorkoutLog.builder().gymId(user.getGymId())
                 .user(user)
                 .date(request.getDate() != null ? request.getDate() : LocalDate.now())
                 .durationMinutes(request.getDurationMinutes())
@@ -74,7 +74,7 @@ public class WorkoutService {
                 Exercise exercise = exerciseRepository.findById(exDto.getExercise().getId())
                         .orElseThrow(() -> new RuntimeException("Exercise not found"));
 
-                WorkoutExerciseLog exLog = WorkoutExerciseLog.builder()
+                WorkoutExerciseLog exLog = WorkoutExerciseLog.builder().gymId(workoutLog.getGymId())
                         .workoutLog(workoutLog)
                         .exercise(exercise)
                         .setsCompleted(exDto.getSetsCompleted())

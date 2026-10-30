@@ -25,7 +25,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         // The demo password is public. Block it even for pre-existing database
         // rows and already-issued tokens; removing SQL seeds alone is insufficient.
-        if (user.getRole() == Role.ADMIN && passwordEncoder.matches("Fitcore@123", user.getPasswordHash())) {
+        if ((user.getRole() == Role.ADMIN || user.getRole() == Role.OWNER) && passwordEncoder.matches("Fitcore@123", user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid credentials");
         }
         return user;

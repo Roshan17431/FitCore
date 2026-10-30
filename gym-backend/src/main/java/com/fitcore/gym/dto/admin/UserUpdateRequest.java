@@ -27,4 +27,7 @@ public class UserUpdateRequest {
 
     private String fitnessGoal;
     private Boolean enabled;
+    @jakarta.validation.constraints.AssertTrue(message="OWNER assignment requires an explicit ownership procedure")
+    public boolean isRoleAssignable() { return role != Role.OWNER; }
+
 }

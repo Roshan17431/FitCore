@@ -163,7 +163,7 @@ public class MembershipService {
     }
 
     private ActiveMembership createPeriod(User user, MembershipPlan plan, LocalDate start, LocalDate end) {
-        return activeMembershipRepository.save(ActiveMembership.builder().user(user).plan(plan)
+        return activeMembershipRepository.save(ActiveMembership.builder().gymId(user.getGymId()).user(user).plan(plan)
                 .startDate(start).endDate(end).status(MembershipStatus.ACTIVE).build());
     }
 

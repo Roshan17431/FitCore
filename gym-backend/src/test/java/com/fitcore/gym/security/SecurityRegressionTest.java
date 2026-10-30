@@ -54,6 +54,7 @@ class SecurityRegressionTest {
     @Autowired NutritionGoalRepository goals;
     @Autowired JdbcTemplate jdbc;
     @Autowired Environment environment;
+    @Autowired com.fitcore.gym.service.AdminService adminService;
 
     private User viewer;
     private User other;
@@ -62,6 +63,17 @@ class SecurityRegressionTest {
     private MembershipPlan plan;
     private Attendance viewerVisit;
     private Attendance otherVisit;
+
+    @Test
+    void ordinaryServiceUpdatesCannotAssignOwner() {
+        var request = new com.fitcore.gym.dto.admin.UserUpdateRequest();
+        request.setFullName(viewer.getFullName());
+        request.setEmail(viewer.getEmail());
+        request.setRole(Role.OWNER);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> adminService.updateUser(viewer.getId(), request))
+                .isInstanceOf(com.fitcore.gym.exception.BadRequestException.class);
+        assertThat(users.findById(viewer.getId()).orElseThrow().getRole()).isEqualTo(Role.MEMBER);
+    }
 
     enum Endpoint {
         PROFILE("GET", "/api/users/{user}"),
@@ -382,4 +394,33 @@ class SecurityRegressionTest {
         }
         return data;
     }
+    @Test void ordinaryRoleUpdateCannotAssignOwner() throws Exception {
+        mvc.perform(put("/api/admin/users/"+other.getId()).header("Authorization","Bearer "+jwt.generateToken(admin))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"fullName\":\"Other\",\"email\":\"owner-injection@fixture.invalid\",\"role\":\"OWNER\",\"enabled\":true}"))
+            .andExpect(status().isBadRequest());
+        assertThat(users.findById(other.getId()).orElseThrow().getRole()).isEqualTo(Role.MEMBER);
+    }
+    @Test void ownerCannotAuthenticateWithPublishedAdministratorPassword() throws Exception {
+        admin.setRole(Role.OWNER);admin.setPasswordHash(encoder.encode(PUBLIC_DEMO_PASSWORD));users.saveAndFlush(admin);
+        mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"email\":\""+admin.getEmail()+"\",\"password\":\""+PUBLIC_DEMO_PASSWORD+"\"}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test void newManagedPlanInheritsAuthenticatedGym() throws Exception {
+        mvc.perform(post("/api/admin/membership-plans").header("Authorization","Bearer "+jwt.generateToken(admin))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Tenant plan fixture\",\"price\":29,\"durationMonths\":1,\"features\":[\"Local\"],\"recommended\":false}"))
+            .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select gym_id from membership_plans where name='Tenant plan fixture'",UUID.class)).isEqualTo(com.fitcore.gym.tenancy.RegressionGym.ID);
+    }
+    @Test void newManagedTrainerAndProfileInheritAuthenticatedGym() throws Exception {
+        mvc.perform(post("/api/admin/trainers").header("Authorization","Bearer "+jwt.generateToken(admin))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"fullName\":\"New trainer\",\"email\":\"new-trainer@fixture.invalid\",\"password\":\"Synthetic@Password26\",\"specialization\":\"Strength\",\"experienceYears\":3}"))
+            .andExpect(status().isCreated());
+        assertThat(jdbc.queryForObject("select t.gym_id from trainer_profiles t join users u on u.id=t.user_id where u.email='new-trainer@fixture.invalid'",UUID.class)).isEqualTo(com.fitcore.gym.tenancy.RegressionGym.ID);
+    }
+
 }
