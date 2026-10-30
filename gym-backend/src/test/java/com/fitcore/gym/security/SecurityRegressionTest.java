@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.fitcore.gym.tenancy.RegressionGym.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -94,15 +95,15 @@ class SecurityRegressionTest {
         viewer = user("viewer", Role.MEMBER);
         other = user("other", Role.MEMBER);
         admin = user("private-admin", Role.ADMIN);
-        trainer = trainers.saveAndFlush(TrainerProfile.builder().user(user("coach", Role.TRAINER))
+        trainer = trainers.saveAndFlush(TrainerProfile.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(user("coach", Role.TRAINER))
                 .specialization("Strength").experienceYears(3)
                 .certifications(List.of()).availableSlots(List.of()).build());
-        plan = plans.saveAndFlush(MembershipPlan.builder().name("Security fixture")
+        plan = plans.saveAndFlush(MembershipPlan.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).name("Security fixture")
                 .price(new BigDecimal("29.00")).durationMonths(1).recommended(false)
                 .features(List.of("Gym access")).build());
         viewerVisit = visit(viewer);
         otherVisit = visit(other);
-        goals.saveAndFlush(NutritionGoal.builder().user(other).targetCalories(2000)
+        goals.saveAndFlush(NutritionGoal.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(other).targetCalories(2000)
                 .targetProtein(120).targetCarbs(220).targetFat(60).build());
     }
 
@@ -328,12 +329,12 @@ class SecurityRegressionTest {
     }
 
     private User user(String name, Role role) {
-        return users.saveAndFlush(User.builder().fullName("Security " + name)
+        return users.saveAndFlush(User.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).fullName("Security " + name)
                 .email(name + "@security.test").passwordHash(PRIVATE_HASH).role(role).enabled(true).build());
     }
 
     private Attendance visit(User user) {
-        return attendance.saveAndFlush(Attendance.builder().user(user).checkInDate(LocalDate.now())
+        return attendance.saveAndFlush(Attendance.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(user).checkInDate(LocalDate.now())
                 .checkInTime(LocalDateTime.now().minusMinutes(10)).build());
     }
 

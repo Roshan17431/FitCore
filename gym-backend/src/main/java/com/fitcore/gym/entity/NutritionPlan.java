@@ -12,24 +12,27 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Entity
-@Table(name = "nutrition_plans")
+@Table(name = "nutrition_plans", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"}),@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","category"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class NutritionPlan {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class NutritionPlan extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String category;
 
     @Column(nullable = false)
@@ -45,7 +48,7 @@ public class NutritionPlan {
     private Integer fats;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "nutrition_plan_meals", joinColumns = @JoinColumn(name = "plan_id"))
+    @CollectionTable(name = "nutrition_plan_meals", joinColumns = {@JoinColumn(name = "plan_id", referencedColumnName="id"), @JoinColumn(name="gym_id", referencedColumnName="gym_id")})
     @Column(name = "meal")
     private List<String> meals;
 }

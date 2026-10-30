@@ -11,6 +11,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -18,12 +20,13 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "notifications")
+@Table(name = "notifications", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Notification {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class Notification extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

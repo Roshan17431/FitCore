@@ -71,6 +71,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * There is deliberately no test-level @Transactional: HTTP worker transactions
  * must see committed fixtures and commit their own writes.
  */
+@org.junit.jupiter.api.extension.ExtendWith(com.fitcore.gym.tenancy.RegressionGym.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(PostgresConcurrencyTest.PostgresTestClock.class)
@@ -150,7 +151,7 @@ class PostgresConcurrencyTest {
             otherMember = user("other-member", Role.MEMBER);
             trainer = trainer("coach");
             otherTrainer = trainer("other-coach");
-            plan = plans.saveAndFlush(MembershipPlan.builder()
+            plan = plans.saveAndFlush(MembershipPlan.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID)
                     .name("PostgreSQL concurrency " + UUID.randomUUID())
                     .price(new BigDecimal("40.00")).durationMonths(1)
                     .features(List.of("Gym access")).recommended(false).build());
@@ -288,7 +289,7 @@ class PostgresConcurrencyTest {
 
     @Test
     void cancelledTrainerAndMemberSlotsCanBeReused() throws Exception {
-        transaction().executeWithoutResult(ignored -> sessions.saveAndFlush(TrainerSession.builder()
+        transaction().executeWithoutResult(ignored -> sessions.saveAndFlush(TrainerSession.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID)
                 .member(member).trainer(trainer).sessionDate(today.plusDays(1))
                 .startTime(LocalTime.of(10, 0)).endTime(LocalTime.of(11, 0))
                 .status(SessionStatus.CANCELLED).build()));
@@ -336,7 +337,7 @@ class PostgresConcurrencyTest {
     }
 
     private User user(String label, Role role) {
-        User user = users.saveAndFlush(User.builder().fullName("PostgreSQL " + label)
+        User user = users.saveAndFlush(User.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).fullName("PostgreSQL " + label)
                 .email(label + "-" + UUID.randomUUID() + "@postgres-concurrency.test")
                 .passwordHash(PASSWORD_HASH).role(role).enabled(true).build());
         fixtureUsers.add(user.getId());
@@ -344,7 +345,7 @@ class PostgresConcurrencyTest {
     }
 
     private TrainerProfile trainer(String label) {
-        TrainerProfile profile = trainers.saveAndFlush(TrainerProfile.builder().user(user(label, Role.TRAINER))
+        TrainerProfile profile = trainers.saveAndFlush(TrainerProfile.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(user(label, Role.TRAINER))
                 .specialization("Strength").experienceYears(3)
                 .certifications(List.of()).availableSlots(List.of()).build());
         fixtureTrainers.add(profile.getId());
@@ -352,7 +353,7 @@ class PostgresConcurrencyTest {
     }
 
     private ActiveMembership membership(LocalDate start, LocalDate end, MembershipStatus status) {
-        return transaction().execute(ignored -> memberships.saveAndFlush(ActiveMembership.builder()
+        return transaction().execute(ignored -> memberships.saveAndFlush(ActiveMembership.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID)
                 .user(member).plan(plan).startDate(start).endDate(end).status(status).build()));
     }
 

@@ -3,6 +3,8 @@ package com.fitcore.gym.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -10,12 +12,13 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "nutrition_goals")
+@Table(name = "nutrition_goals", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class NutritionGoal {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class NutritionGoal extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

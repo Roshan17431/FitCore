@@ -4,6 +4,8 @@ import com.fitcore.gym.domain.SessionStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,12 +16,13 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "trainer_sessions")
+@Table(name = "trainer_sessions", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class TrainerSession {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class TrainerSession extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

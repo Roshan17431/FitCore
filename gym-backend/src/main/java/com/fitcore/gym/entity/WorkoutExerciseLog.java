@@ -3,16 +3,19 @@ package com.fitcore.gym.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "workout_exercise_logs")
+@Table(name = "workout_exercise_logs", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class WorkoutExerciseLog {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class WorkoutExerciseLog extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

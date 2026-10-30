@@ -4,22 +4,25 @@ import com.fitcore.gym.domain.DifficultyLevel;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "exercises")
+@Table(name = "exercises", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"}),@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","name"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Exercise {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class Exercise extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
     @Column(nullable = false)

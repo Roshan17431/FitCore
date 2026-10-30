@@ -39,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.fitcore.gym.tenancy.RegressionGym.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -312,15 +313,15 @@ class MembershipRegressionTest {
     }
 
     private User user(String name, Role role) {
-        return users.saveAndFlush(User.builder().fullName("Membership " + name).email(name + "@membership.test")
+        return users.saveAndFlush(User.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).fullName("Membership " + name).email(name + "@membership.test")
                 .passwordHash(HASH).role(role).enabled(true).build());
     }
     private MembershipPlan plan(String name, String price, int months) {
-        return plans.saveAndFlush(MembershipPlan.builder().name(name).price(new BigDecimal(price))
+        return plans.saveAndFlush(MembershipPlan.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).name(name).price(new BigDecimal(price))
                 .durationMonths(months).features(List.of("Gym access")).recommended(false).build());
     }
     private ActiveMembership membership(User owner, MembershipPlan plan, LocalDate start, LocalDate end, MembershipStatus status) {
-        return memberships.saveAndFlush(ActiveMembership.builder().user(owner).plan(plan).startDate(start).endDate(end).status(status).build());
+        return memberships.saveAndFlush(ActiveMembership.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(owner).plan(plan).startDate(start).endDate(end).status(status).build());
     }
     private String token(User user) { return "Bearer " + jwt.generateToken(user); }
     private ResultActions current() throws Exception {

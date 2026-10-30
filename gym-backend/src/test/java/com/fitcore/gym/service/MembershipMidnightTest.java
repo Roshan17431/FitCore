@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.fitcore.gym.tenancy.RegressionGym.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -58,13 +59,13 @@ class MembershipMidnightTest {
     @Autowired ActiveMembershipRepository memberships;
 
     @Test void upgradeCrossingMidnightNeverCreatesAnEmptyPeriod() throws Exception {
-        User member = users.saveAndFlush(User.builder().fullName("Midnight fixture").email("midnight@phase2.test")
+        User member = users.saveAndFlush(User.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).fullName("Midnight fixture").email("midnight@phase2.test")
                 .role(Role.MEMBER).enabled(true).passwordHash(new BCryptPasswordEncoder().encode("Local midnight fixture")).build());
-        MembershipPlan before = plans.saveAndFlush(MembershipPlan.builder().name("Midnight Basic").price(new BigDecimal("29"))
+        MembershipPlan before = plans.saveAndFlush(MembershipPlan.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).name("Midnight Basic").price(new BigDecimal("29"))
                 .durationMonths(1).features(List.of()).build());
-        MembershipPlan next = plans.saveAndFlush(MembershipPlan.builder().name("Midnight Premium").price(new BigDecimal("79"))
+        MembershipPlan next = plans.saveAndFlush(MembershipPlan.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).name("Midnight Premium").price(new BigDecimal("79"))
                 .durationMonths(3).features(List.of()).build());
-        ActiveMembership current = memberships.saveAndFlush(ActiveMembership.builder().user(member).plan(before)
+        ActiveMembership current = memberships.saveAndFlush(ActiveMembership.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(member).plan(before)
                 .startDate(LocalDate.of(2030, 6, 1)).endDate(LocalDate.of(2030, 6, 4)).status(MembershipStatus.ACTIVE).build());
         mvc.perform(post("/api/memberships/upgrade/" + member.getId() + "/" + next.getId())
                 .header("Authorization", "Bearer " + jwt.generateToken(member)).contentType(MediaType.APPLICATION_JSON)

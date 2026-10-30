@@ -13,18 +13,21 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Entity
-@Table(name = "trainer_profiles")
+@Table(name = "trainer_profiles", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class TrainerProfile {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class TrainerProfile extends TenantOwnedEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,12 +49,12 @@ public class TrainerProfile {
     private String photoUrl;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "trainer_certifications", joinColumns = @JoinColumn(name = "trainer_id"))
+    @CollectionTable(name = "trainer_certifications", joinColumns = {@JoinColumn(name = "trainer_id", referencedColumnName="id"), @JoinColumn(name="gym_id", referencedColumnName="gym_id")})
     @Column(name = "certification")
     private List<String> certifications;
 
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "trainer_available_slots", joinColumns = @JoinColumn(name = "trainer_id"))
+    @CollectionTable(name = "trainer_available_slots", joinColumns = {@JoinColumn(name = "trainer_id", referencedColumnName="id"), @JoinColumn(name="gym_id", referencedColumnName="gym_id")})
     @Column(name = "slot")
     private List<String> availableSlots;
 }

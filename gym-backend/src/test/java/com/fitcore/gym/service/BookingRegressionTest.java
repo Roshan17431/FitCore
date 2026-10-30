@@ -50,6 +50,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@org.junit.jupiter.api.extension.ExtendWith(com.fitcore.gym.tenancy.RegressionGym.class)
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -331,12 +332,12 @@ class BookingRegressionTest {
     }
 
     private User user(Role role) {
-        return users.saveAndFlush(User.builder().fullName("Private booking fixture")
+        return users.saveAndFlush(User.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).fullName("Private booking fixture")
                 .email(UUID.randomUUID() + "@booking.test").passwordHash(PASSWORD_HASH).role(role).enabled(true).build());
     }
 
     private TrainerProfile trainer() {
-        return trainers.saveAndFlush(TrainerProfile.builder().user(user(Role.TRAINER)).specialization("Strength")
+        return trainers.saveAndFlush(TrainerProfile.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).user(user(Role.TRAINER)).specialization("Strength")
                 .experienceYears(3).certifications(new ArrayList<>()).availableSlots(new ArrayList<>()).build());
     }
 
@@ -346,7 +347,7 @@ class BookingRegressionTest {
     }
 
     private void existing(User owner, TrainerProfile coach, LocalDate date, String start, String end, SessionStatus sessionStatus) {
-        sessions.saveAndFlush(TrainerSession.builder().member(owner).trainer(coach).sessionDate(date)
+        sessions.saveAndFlush(TrainerSession.builder().gymId(com.fitcore.gym.tenancy.RegressionGym.ID).member(owner).trainer(coach).sessionDate(date)
                 .startTime(LocalTime.parse(start)).endTime(LocalTime.parse(end)).status(sessionStatus).build());
     }
 

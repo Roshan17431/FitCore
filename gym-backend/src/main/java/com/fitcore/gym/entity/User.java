@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.experimental.SuperBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -19,12 +21,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", uniqueConstraints={@jakarta.persistence.UniqueConstraint(columnNames={"gym_id","id"})})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class User implements UserDetails {
+@SuperBuilder
+@EqualsAndHashCode(callSuper=true)
+public class User extends TenantOwnedEntity implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -45,6 +48,16 @@ public class User implements UserDetails {
     private Role role;
 
     private String fitnessGoal;
+
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="gym_id", insertable=false, updatable=false)
+    @lombok.ToString.Exclude @EqualsAndHashCode.Exclude
+    private Gym gym;
+
+    @Column(nullable=false)
+    @Builder.Default
+    private long authzVersion = 0;
+
 
     @Builder.Default
     private Boolean enabled = true;
