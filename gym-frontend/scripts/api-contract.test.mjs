@@ -11,7 +11,7 @@ const source = (await readFile(new URL('../src/services/api.js', import.meta.url
   .replaceAll('import.meta.env', '({ VITE_API_BASE_URL: "http://127.0.0.1:18081" })');
 globalThis.localStorage = { getItem: () => null };
 globalThis.sessionStorage = { getItem: () => null };
-const { default: api, membershipService } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { default: api, membershipService, trainerService } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const plan = { id: 3, name: 'Premium', price: '120', durationMonths: 3, features: ['Classes'] };
 const membership = { id: 41, plan, startDate: '2030-01-01', endDate: '2030-04-01', status: 'ACTIVE', remainingDays: 29, serverDate: '2030-03-03', timeZone: 'UTC' };
 const respond = (data, status = 200) => {
@@ -81,4 +81,17 @@ test('upgrade sends the current membership and expected expiry to the target-pla
   await membershipService.upgrade(7, 5, 41, '2030-04-01');
   assert.equal(captured.url, '/memberships/upgrade/7/5');
   assert.deepEqual(JSON.parse(captured.data), { membershipId: 41, expectedEndDate: '2030-04-01' });
+});
+
+test('booking serializes business fields without replaying session tenant or security metadata', async () => {
+  let captured;
+  api.defaults.adapter = async config => { captured = config; return {data:{},status:200,headers:{},config}; };
+  const member = { id: 'member-a', fullName: 'Local Member', email: 'member@fixture.invalid', role: 'MEMBER', gymId: 'gym-a', authzVersion: 7 };
+  await trainerService.bookSession(member.id, 3, { member, trainer: {id:3,user:{...member,id:'trainer-a',role:'TRAINER'},specialization:'Strength',gymId:'gym-a'}, gymId:'forged', sessionDate:'2030-01-01',startTime:'10:00',endTime:'11:00' });
+  const body=JSON.parse(captured.data);
+  assert.equal(captured.url,'/trainers/book/member-a/3');
+  assert.equal(body.member.id,member.id);
+  assert.equal(body.trainer.id,3);
+  assert.equal(body.sessionDate,'2030-01-01');
+  assert.ok(!captured.data.includes('gymId') && !captured.data.includes('authzVersion'));
 });

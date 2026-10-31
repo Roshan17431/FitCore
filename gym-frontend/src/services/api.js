@@ -434,7 +434,18 @@ export const trainerService = {
         sessionHistory: mapped,
       };
     }),
-  bookSession: (memberId, trainerId, payload) => api.post(`/trainers/book/${memberId}/${trainerId}`, payload).then(unwrap),
+  bookSession: (memberId, trainerId, payload) => {
+    // Session metadata is never an ownership selector in a business request.
+    const person = (user) => user && ({ id: user.id, fullName: user.fullName, email: user.email, role: user.role });
+    const body = {
+      member: person(payload.member),
+      trainer: { id: Number(trainerId), user: person(payload.trainer?.user), specialization: payload.trainer?.specialization },
+      sessionDate: payload.sessionDate,
+      startTime: payload.startTime,
+      endTime: payload.endTime,
+    };
+    return api.post(`/trainers/book/${memberId}/${trainerId}`, body).then(unwrap);
+  },
 };
 
 export const attendanceService = {

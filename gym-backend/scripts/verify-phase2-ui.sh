@@ -181,8 +181,21 @@ INSERT INTO membership_plan_features (plan_id, feature, gym_id) VALUES
 INSERT INTO trainer_profiles (id, user_id, specialization, experience_years, bio, photo_url, gym_id) VALUES
 (1, '55555555-5555-5555-5555-555555555555', 'Strength', 5, 'Local Alpha fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+', '90000000-0000-0000-0000-000000000001'),
 (2, '66666666-6666-6666-6666-666666666666', 'Mobility', 4, 'Local Beta fixture', 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxwYXRoIGZpbGw9IiMxMGI5ODEiIGQ9Ik0wIDBoOHY4SDB6Ii8+PC9zdmc+', '90000000-0000-0000-0000-000000000001');
-SELECT setval(pg_get_serial_sequence('membership_plans', 'id'), 3, true);
-SELECT setval(pg_get_serial_sequence('trainer_profiles', 'id'), 2, true);
+-- A second, explicit synthetic gym proves catalog and report isolation.
+INSERT INTO gyms (id,name,slug,status,created_at,updated_at) VALUES
+('a0000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL','browser-gym-b','ACTIVE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+INSERT INTO users (id,gym_id,full_name,email,password_hash,role,enabled,created_at,updated_at) VALUES
+('a1000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL owner','tenant-b-owner@fixture.invalid','$2y$10$rCG7lNQmE1JLMX3lAfxPY.xl3agde2dbjIFIhsAgWau.M.4e6GwFm','OWNER',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+('a2000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL admin','tenant-b-admin@fixture.invalid','$2y$10$rCG7lNQmE1JLMX3lAfxPY.xl3agde2dbjIFIhsAgWau.M.4e6GwFm','ADMIN',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+('a3000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL member','tenant-b-member@fixture.invalid',:'public_hash','MEMBER',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+('a4000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL trainer','tenant-b-trainer@fixture.invalid',:'public_hash','TRAINER',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP);
+UPDATE gyms SET primary_owner_user_id='a1000000-0000-0000-0000-000000000002' WHERE id='a0000000-0000-0000-0000-000000000002';
+INSERT INTO membership_plans(id,name,price,duration_months,recommended,gym_id) VALUES(4,'Basic',29,1,false,'a0000000-0000-0000-0000-000000000002');
+INSERT INTO membership_plan_features(plan_id,feature,gym_id) VALUES(4,'BROWSER_GYM_B_SENTINEL feature','a0000000-0000-0000-0000-000000000002');
+INSERT INTO trainer_profiles(id,user_id,specialization,experience_years,gym_id) VALUES(3,'a4000000-0000-0000-0000-000000000002','BROWSER_GYM_B_SENTINEL',3,'a0000000-0000-0000-0000-000000000002');
+INSERT INTO attendance(user_id,gym_id,check_in_date,check_in_time) VALUES('a3000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002',CURRENT_DATE,CURRENT_TIMESTAMP);
+SELECT setval(pg_get_serial_sequence('membership_plans', 'id'), 4, true);
+SELECT setval(pg_get_serial_sequence('trainer_profiles', 'id'), 3, true);
 COMMIT;
 SELECT 'initial_memberships=' || count(*) FROM active_memberships;
 SELECT 'initial_sessions=' || count(*) FROM trainer_sessions;
@@ -251,6 +264,14 @@ SQL
   ) >"$artifact_dir/phase3-integrated.log" 2>&1; then
     echo 'Phase 3 integrated UI verification failed; inspect phase3-integrated.log.' >&2
     tail -n 15 "$artifact_dir/phase3-integrated.log" >&2
+    exit 1
+  fi
+  if ! (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/tenant-isolation-integrated.pw.js"
+  ) >"$artifact_dir/tenant-isolation-integrated.log" 2>&1; then
+    echo 'Tenant browser isolation verification failed; inspect tenant-isolation-integrated.log.' >&2
+    tail -n 15 "$artifact_dir/tenant-isolation-integrated.log" >&2
     exit 1
   fi
 fi
