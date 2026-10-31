@@ -1,26 +1,21 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.User;
-import com.fitcore.gym.domain.Role;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
+
 import jakarta.persistence.LockModeType;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
-    // Lock the stable parent, including when no membership/session row exists yet.
+import java.time.*;
+import java.util.*;
+
+public interface UserRepository extends TenantRepository<User, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from User u where u.id = :id")
-    Optional<User> findByIdForUpdate(UUID id);
+    @Query("select u from User u where u.id=:id and u.gymId=:gymId")
+    Optional<User> findByIdAndGymIdForUpdate(UUID id, UUID gymId);
 
-    Optional<User> findByEmail(String email);
-    boolean existsByEmail(String email);
-    long countByRole(Role role);
-    List<User> findByRole(Role role);
+    List<User> findByGymIdAndRole(UUID gymId, Role role);
+
+    long countByGymIdAndRole(UUID gymId, Role role);
 }

@@ -1,15 +1,15 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.ProgressMetric;
-import com.fitcore.gym.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.util.List;
-import java.util.Optional;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface ProgressMetricRepository extends JpaRepository<ProgressMetric, Long> {
-    List<ProgressMetric> findByUserOrderByLogDateDesc(User user);
-    Optional<ProgressMetric> findFirstByUserOrderByLogDateDesc(User user);
+import java.time.*;
+import java.util.*;
+
+public interface ProgressMetricRepository extends TenantRepository<ProgressMetric, Long> {
+    List<ProgressMetric> findByGymIdAndUserIdOrderByLogDateDesc(UUID gymId, UUID userId);
+
+    Optional<ProgressMetric> findFirstByGymIdAndUserIdOrderByLogDateDesc(UUID gymId, UUID userId);
 }

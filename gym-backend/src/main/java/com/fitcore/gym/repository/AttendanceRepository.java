@@ -1,19 +1,20 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.Attendance;
-import com.fitcore.gym.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
-    List<Attendance> findByUserOrderByCheckInTimeDesc(User user);
-    List<Attendance> findAllByOrderByCheckInTimeDesc();
-    List<Attendance> findByCheckInDateBetween(LocalDate start, LocalDate end);
-    long countByCheckInDateBetween(LocalDate start, LocalDate end);
-    Optional<Attendance> findFirstByUserAndCheckOutTimeIsNullOrderByCheckInTimeDesc(User user);
+import java.time.*;
+import java.util.*;
+
+public interface AttendanceRepository extends TenantRepository<Attendance, Long> {
+    List<Attendance> findByGymIdAndUserIdOrderByCheckInTimeDesc(UUID gymId, UUID userId);
+
+    List<Attendance> findAllByGymIdOrderByCheckInTimeDesc(UUID gymId);
+
+    List<Attendance> findByGymIdAndCheckInDateBetween(UUID gymId, LocalDate start, LocalDate end);
+
+    Optional<Attendance> findFirstByGymIdAndUserIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(
+            UUID gymId, UUID userId);
 }

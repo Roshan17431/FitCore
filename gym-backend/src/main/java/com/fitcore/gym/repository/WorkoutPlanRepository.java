@@ -1,9 +1,11 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.WorkoutPlan;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-@Repository
-public interface WorkoutPlanRepository extends JpaRepository<WorkoutPlan, Long> {
-}
+import org.springframework.data.jpa.repository.*;
+
+import java.time.*;
+import java.util.*;
+
+public interface WorkoutPlanRepository extends TenantRepository<WorkoutPlan, Long> {}

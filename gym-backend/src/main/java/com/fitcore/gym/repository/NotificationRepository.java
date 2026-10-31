@@ -1,13 +1,13 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.Notification;
-import com.fitcore.gym.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.util.List;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
-    List<Notification> findByUserOrderByCreatedAtDesc(User user);
+import java.time.*;
+import java.util.*;
+
+public interface NotificationRepository extends TenantRepository<Notification, Long> {
+    List<Notification> findByGymIdAndUserIdOrderByCreatedAtDesc(UUID gymId, UUID userId);
 }

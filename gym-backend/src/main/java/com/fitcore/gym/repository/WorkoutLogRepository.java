@@ -1,15 +1,16 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.User;
-import com.fitcore.gym.entity.WorkoutLog;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.time.LocalDate;
-import java.util.List;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface WorkoutLogRepository extends JpaRepository<WorkoutLog, Long> {
-    List<WorkoutLog> findByUserOrderByDateDesc(User user);
-    List<WorkoutLog> findByUserAndDateBetweenOrderByDateAsc(User user, LocalDate start, LocalDate end);
+import java.time.*;
+import java.util.*;
+
+public interface WorkoutLogRepository extends TenantRepository<WorkoutLog, Long> {
+    List<WorkoutLog> findByGymIdAndUserIdOrderByDateDesc(UUID gymId, UUID userId);
+
+    List<WorkoutLog> findByGymIdAndUserIdAndDateBetweenOrderByDateAsc(
+            UUID gymId, UUID userId, LocalDate start, LocalDate end);
 }

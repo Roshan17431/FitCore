@@ -1,34 +1,29 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.domain.SessionStatus;
-import com.fitcore.gym.entity.TrainerProfile;
-import com.fitcore.gym.entity.TrainerSession;
-import com.fitcore.gym.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.List;
-import java.util.UUID;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface TrainerSessionRepository extends JpaRepository<TrainerSession, Long> {
-    List<TrainerSession> findByMember(User member);
-    List<TrainerSession> findByMemberOrderBySessionDateAscStartTimeAsc(User member);
-    List<TrainerSession> findByTrainer(TrainerProfile trainer);
+import java.time.*;
+import java.util.*;
 
-    @Query("""
-            select count(session) > 0 from TrainerSession session
-            where session.status = :status
-              and session.sessionDate = :sessionDate
-              and session.startTime < :endTime
-              and session.endTime > :startTime
-              and (session.trainer.id = :trainerId or session.member.id = :memberId)
-            """)
-    boolean existsScheduledOverlap(@Param("trainerId") Long trainerId, @Param("memberId") UUID memberId,
-                                   @Param("sessionDate") LocalDate sessionDate, @Param("startTime") LocalTime startTime,
-                                   @Param("endTime") LocalTime endTime, @Param("status") SessionStatus status);
+public interface TrainerSessionRepository extends TenantRepository<TrainerSession, Long> {
+    List<TrainerSession> findByGymIdAndMemberIdOrderBySessionDateAscStartTimeAsc(
+            UUID gymId, UUID memberId);
+
+    List<TrainerSession> findByGymIdAndTrainerId(UUID gymId, Long trainerId);
+
+    @Query(
+            "select count(s)>0 from TrainerSession s where s.gymId=:gymId and s.status=:status and"
+                + " s.sessionDate=:sessionDate and s.startTime<:endTime and s.endTime>:startTime"
+                + " and (s.trainer.id=:trainerId or s.member.id=:memberId)")
+    boolean existsScheduledOverlap(
+            UUID gymId,
+            Long trainerId,
+            UUID memberId,
+            LocalDate sessionDate,
+            LocalTime startTime,
+            LocalTime endTime,
+            SessionStatus status);
 }

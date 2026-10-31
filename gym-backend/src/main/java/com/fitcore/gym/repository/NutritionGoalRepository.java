@@ -1,13 +1,13 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.NutritionGoal;
-import com.fitcore.gym.entity.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.util.Optional;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface NutritionGoalRepository extends JpaRepository<NutritionGoal, Long> {
-    Optional<NutritionGoal> findByUser(User user);
+import java.time.*;
+import java.util.*;
+
+public interface NutritionGoalRepository extends TenantRepository<NutritionGoal, Long> {
+    Optional<NutritionGoal> findByGymIdAndUserId(UUID gymId, UUID userId);
 }

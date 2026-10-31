@@ -1,21 +1,19 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.ActiveMembership;
-import com.fitcore.gym.entity.MembershipPlan;
-import com.fitcore.gym.entity.User;
-import com.fitcore.gym.domain.MembershipStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.util.List;
-import java.util.Optional;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface ActiveMembershipRepository extends JpaRepository<ActiveMembership, Long> {
-    List<ActiveMembership> findByUser(User user);
-    List<ActiveMembership> findByUserOrderByStartDateDesc(User user);
-    List<ActiveMembership> findByStatus(MembershipStatus status);
-    Optional<ActiveMembership> findFirstByUserOrderByStartDateDesc(User user);
-    long countByStatus(MembershipStatus status);
-    boolean existsByPlan(MembershipPlan plan);
+import java.time.*;
+import java.util.*;
+
+public interface ActiveMembershipRepository extends TenantRepository<ActiveMembership, Long> {
+    List<ActiveMembership> findByGymIdAndUserIdOrderByStartDateDesc(UUID gymId, UUID userId);
+
+    Optional<ActiveMembership> findByIdAndGymIdAndUserId(Long id, UUID gymId, UUID userId);
+
+    List<ActiveMembership> findByGymIdAndStatus(UUID gymId, MembershipStatus status);
+
+    boolean existsByGymIdAndPlanId(UUID gymId, Long planId);
 }

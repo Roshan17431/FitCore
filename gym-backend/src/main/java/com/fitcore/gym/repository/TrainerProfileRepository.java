@@ -1,21 +1,19 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.TrainerProfile;
-import com.fitcore.gym.entity.User;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
+
 import jakarta.persistence.LockModeType;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface TrainerProfileRepository extends JpaRepository<TrainerProfile, Long> {
-    Optional<TrainerProfile> findByUser(User user);
+import java.time.*;
+import java.util.*;
+
+public interface TrainerProfileRepository extends TenantRepository<TrainerProfile, Long> {
+    Optional<TrainerProfile> findByGymIdAndUserId(UUID gymId, UUID userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select profile from TrainerProfile profile where profile.id = :id")
-    Optional<TrainerProfile> findByIdForUpdate(@Param("id") Long id);
+    @Query("select p from TrainerProfile p where p.id=:id and p.gymId=:gymId")
+    Optional<TrainerProfile> findByIdAndGymIdForUpdate(Long id, UUID gymId);
 }

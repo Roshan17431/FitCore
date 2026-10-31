@@ -1,12 +1,13 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.Exercise;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-import java.util.List;
+import org.springframework.data.jpa.repository.*;
 
-@Repository
-public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
-    List<Exercise> findByCategory(String category);
+import java.time.*;
+import java.util.*;
+
+public interface ExerciseRepository extends TenantRepository<Exercise, Long> {
+    List<Exercise> findByGymIdAndCategory(UUID gymId, String category);
 }

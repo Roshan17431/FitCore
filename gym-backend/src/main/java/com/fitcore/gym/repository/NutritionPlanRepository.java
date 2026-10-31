@@ -1,9 +1,11 @@
 package com.fitcore.gym.repository;
 
-import com.fitcore.gym.entity.NutritionPlan;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import com.fitcore.gym.domain.*;
+import com.fitcore.gym.entity.*;
 
-@Repository
-public interface NutritionPlanRepository extends JpaRepository<NutritionPlan, Long> {
-}
+import org.springframework.data.jpa.repository.*;
+
+import java.time.*;
+import java.util.*;
+
+public interface NutritionPlanRepository extends TenantRepository<NutritionPlan, Long> {}
