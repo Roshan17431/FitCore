@@ -1,107 +1,114 @@
 package com.fitcore.gym.security;
 
+import com.fitcore.gym.domain.GymStatus;
+
 import io.jsonwebtoken.JwtException;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.lang.NonNull;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
     private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
-    private static final List<String> PUBLIC_PATHS = List.of(
-            "/api/health",
-            "/swagger-ui.html"
-    );
-    private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
-            "/api/auth",
-            "/v3/api-docs",
-            "/swagger-ui"
-    );
+    private final CustomUserDetailsService identities;
+    private final com.fitcore.gym.repository.GymRepository gyms;
+
+    static boolean publicRequest(HttpServletRequest r) {
+        String p = r.getServletPath();
+        return "OPTIONS".equals(r.getMethod())
+                || ("POST".equals(r.getMethod())
+                        && java.util.Set.of(
+                                        "/api/auth/login",
+                                        "/api/auth/register",
+                                        "/api/auth/forgot-password")
+                                .contains(p))
+                || ("GET".equals(r.getMethod()) && p.equals("/api/health"))
+                || p.equals("/error")
+                || p.startsWith("/v3/api-docs")
+                || p.startsWith("/swagger-ui");
+    }
+
+    static boolean hasSelector(HttpServletRequest r) {
+        return r.getHeader("X-Gym-ID") != null
+                || r.getParameterMap().keySet().stream()
+                        .map(
+                                k ->
+                                        k.replace("_", "")
+                                                .replace("-", "")
+                                                .toLowerCase(java.util.Locale.ROOT))
+                        .anyMatch(k -> java.util.Set.of("gymid", "tenantid").contains(k));
+    }
 
     @Override
-    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
-        String path = request.getServletPath();
-        return "OPTIONS".equalsIgnoreCase(request.getMethod())
-                || PUBLIC_PATHS.contains(path)
-                || PUBLIC_PATH_PREFIXES.stream().anyMatch(prefix ->
-                        path.equals(prefix) || path.startsWith(prefix + "/")
-                );
+    protected boolean shouldNotFilter(HttpServletRequest r) {
+        return publicRequest(r) && !hasSelector(r);
     }
 
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
-        
-        final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
-        
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            log.debug("JWT filter continuing without token: method={} path={}",
-                    request.getMethod(),
-                    request.getRequestURI());
-            filterChain.doFilter(request, response);
-            return;
-        }
-        
+            HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws IOException, ServletException {
         try {
-            jwt = authHeader.substring(7);
-            userEmail = jwtService.extractUsername(jwt);
-
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-
-                if (jwtService.isTokenValid(jwt, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-                    authToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                    log.debug("JWT authentication succeeded: method={} path={} user={}",
-                            request.getMethod(),
-                            request.getRequestURI(),
-                            userEmail);
-                } else {
-                    log.warn("JWT token rejected as invalid: method={} path={} user={}",
-                            request.getMethod(),
-                            request.getRequestURI(),
-                            userEmail);
+            if (hasSelector(request)) {
+                error(response, 400, "Tenant selectors are not supported");
+                return;
+            }
+            String h = request.getHeader("Authorization");
+            if (h != null && h.startsWith("Bearer ")) {
+                String token = h.substring(7);
+                try {
+                    String subject = jwtService.extractUsername(token);
+                    if (subject == null || subject.isBlank()) {
+                        throw new IllegalArgumentException("Missing token subject");
+                    }
+                    var account = identities.loadById(UUID.fromString(subject));
+                    if (jwtService.isTokenValid(token, account)) {
+                        if (gyms.findById(account.getGymId())
+                                .map(g -> g.getStatus() != GymStatus.ACTIVE)
+                                .orElse(true)) {
+                            error(response, 403, "GYM_UNAVAILABLE");
+                            return;
+                        }
+                        var actor =
+                                new TenantActor(
+                                        account.getId(),
+                                        account.getGymId(),
+                                        account.getRole(),
+                                        account.getAuthzVersion());
+                        request.setAttribute("fitcore.tenantActor", actor);
+                        SecurityContextHolder.getContext()
+                                .setAuthentication(
+                                        new UsernamePasswordAuthenticationToken(
+                                                actor, null, account.getAuthorities()));
+                    }
+                } catch (JwtException
+                        | IllegalArgumentException
+                        | AuthenticationException invalid) {
+                    SecurityContextHolder.clearContext();
                 }
             }
-        } catch (JwtException | IllegalArgumentException | AuthenticationException exception) {
+            chain.doFilter(request, response);
+        } finally {
             SecurityContextHolder.clearContext();
-            log.warn("JWT authentication failed: method={} path={} reason={}",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    exception.getMessage());
         }
+    }
 
-        filterChain.doFilter(request, response);
+    private void error(HttpServletResponse response, int status, String message)
+            throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"status\":" + status + ",\"message\":\"" + message + "\"}");
     }
 }

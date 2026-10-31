@@ -1,6 +1,7 @@
 package com.fitcore.gym.dto.auth;
 
-import com.fitcore.gym.dto.user.UserDto;
+import com.fitcore.gym.dto.user.SessionUserDto;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,5 +13,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class AuthResponse {
     private String token;
-    private UserDto user;
+    private SessionUserDto user;
 }

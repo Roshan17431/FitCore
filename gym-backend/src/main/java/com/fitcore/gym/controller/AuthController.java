@@ -5,18 +5,21 @@ import com.fitcore.gym.dto.auth.AuthResponse;
 import com.fitcore.gym.dto.auth.ForgotPasswordRequest;
 import com.fitcore.gym.dto.auth.RegisterRequest;
 import com.fitcore.gym.service.AuthService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -26,19 +29,23 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @org.springframework.web.bind.annotation.GetMapping("/me")
+    public com.fitcore.gym.dto.user.SessionUserDto me() {
+        return authService.me();
+    }
+
     @Operation(
             summary = "Register a new user",
-            description = "Creates a new user account with the specified role and fitness goal.",
+            description = "Invitation registration will be enabled with owner onboarding.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "User successfully registered"),
-                    @ApiResponse(responseCode = "400", description = "Validation error or invalid request"),
-                    @ApiResponse(responseCode = "409", description = "Email already in use")
-            }
-    )
+                @ApiResponse(responseCode = "200", description = "User successfully registered"),
+                @ApiResponse(
+                        responseCode = "400",
+                        description = "Validation error or invalid request"),
+                @ApiResponse(responseCode = "409", description = "Email already in use")
+            })
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(
-            @Valid @RequestBody RegisterRequest request
-    ) {
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.ok(authService.register(request));
     }
 
@@ -46,15 +53,12 @@ public class AuthController {
             summary = "Authenticate a user",
             description = "Authenticates a user by email and password, returning a JWT token.",
             responses = {
-                    @ApiResponse(responseCode = "200", description = "Successfully authenticated"),
-                    @ApiResponse(responseCode = "401", description = "Invalid credentials"),
-                    @ApiResponse(responseCode = "400", description = "Validation error")
-            }
-    )
+                @ApiResponse(responseCode = "200", description = "Successfully authenticated"),
+                @ApiResponse(responseCode = "401", description = "Invalid credentials"),
+                @ApiResponse(responseCode = "400", description = "Validation error")
+            })
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody AuthRequest request
-    ) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
@@ -62,14 +66,11 @@ public class AuthController {
             summary = "Request password reset",
             description = "Accepts a password reset request without exposing account existence.",
             responses = {
-                    @ApiResponse(responseCode = "202", description = "Reset request accepted"),
-                    @ApiResponse(responseCode = "400", description = "Validation error")
-            }
-    )
+                @ApiResponse(responseCode = "202", description = "Reset request accepted"),
+                @ApiResponse(responseCode = "400", description = "Validation error")
+            })
     @PostMapping("/forgot-password")
-    public ResponseEntity<Void> forgotPassword(
-            @Valid @RequestBody ForgotPasswordRequest request
-    ) {
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.requestPasswordReset(request.getEmail());
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }

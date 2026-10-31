@@ -1,24 +1,29 @@
 package com.fitcore.gym.security;
 
+import com.fitcore.gym.entity.User;
+import com.fitcore.gym.exception.ForbiddenException;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.Key;
+import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 @Service
 public class JwtService {
@@ -43,10 +48,15 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        if (!(userDetails instanceof User account) || account.getGymId() == null)
+            throw new ForbiddenException("GYM_ASSIGNMENT_REQUIRED");
         return Jwts.builder()
                 .setClaims(extraClaims)
+                .claim("tokenVersion", 2)
+                .claim("gymId", account.getGymId().toString())
+                .claim("authzVersion", account.getAuthzVersion())
                 .claim("credentialsVersion", credentialsVersion(userDetails))
-                .setSubject(userDetails.getUsername())
+                .setSubject(account.getId().toString())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
@@ -54,16 +64,25 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        final String version = extractClaim(token, claims -> claims.get("credentialsVersion", String.class));
+        if (!(userDetails instanceof User account) || account.getGymId() == null) return false;
+        final Claims claims = extractAllClaims(token);
+        final String username = claims.getSubject();
+        final String version = claims.get("credentialsVersion", String.class);
         return userDetails.isEnabled()
                 && userDetails.isAccountNonExpired()
                 && userDetails.isAccountNonLocked()
                 && userDetails.isCredentialsNonExpired()
-                && username.equals(userDetails.getUsername())
-                && !isTokenExpired(token)
+                && account.getId().toString().equals(username)
+                && Integer.valueOf(2).equals(claims.get("tokenVersion", Integer.class))
+                && account.getGymId().toString().equals(claims.get("gymId", String.class))
+                && (claims.get("authzVersion") instanceof Integer
+                        || claims.get("authzVersion") instanceof Long)
+                && ((Number) claims.get("authzVersion")).longValue() == account.getAuthzVersion()
+                && claims.getExpiration() != null
+                && claims.getExpiration().after(new Date())
                 && version != null
-                && MessageDigest.isEqual(version.getBytes(StandardCharsets.UTF_8),
+                && MessageDigest.isEqual(
+                        version.getBytes(StandardCharsets.UTF_8),
                         credentialsVersion(userDetails).getBytes(StandardCharsets.UTF_8));
     }
 
@@ -73,8 +92,10 @@ public class JwtService {
             mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
             // Do not expose the stored password hash in the JWT. A keyed version
             // invalidates old tokens when credentials change, including demo-account rotation.
-            byte[] version = mac.doFinal(("credentials-version:" + userDetails.getPassword())
-                    .getBytes(StandardCharsets.UTF_8));
+            byte[] version =
+                    mac.doFinal(
+                            ("credentials-version:" + userDetails.getPassword())
+                                    .getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(version);
         } catch (GeneralSecurityException exception) {
             throw new IllegalStateException("Unable to derive credential version", exception);
