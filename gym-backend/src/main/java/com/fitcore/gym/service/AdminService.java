@@ -17,25 +17,25 @@ import com.fitcore.gym.entity.MembershipPlan;
 import com.fitcore.gym.entity.TrainerProfile;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.exception.BadRequestException;
-import com.fitcore.gym.exception.DuplicateResourceException;
-import com.fitcore.gym.exception.ForbiddenException;
 import com.fitcore.gym.exception.ResourceNotFoundException;
 import com.fitcore.gym.repository.ActiveMembershipRepository;
 import com.fitcore.gym.repository.AttendanceRepository;
 import com.fitcore.gym.repository.MembershipPlanRepository;
 import com.fitcore.gym.repository.TrainerProfileRepository;
 import com.fitcore.gym.repository.UserRepository;
+import com.fitcore.gym.security.TenantAccess;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.Clock;
-import java.time.ZoneOffset;
+import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
@@ -43,12 +43,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Service
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 public class AdminService {
+    private final TenantAccess tenantAccess;
 
     private static final DateTimeFormatter MONTH_LABEL = DateTimeFormatter.ofPattern("MMM");
 
     private final UserRepository userRepository;
+    private final com.fitcore.gym.security.IdentityUniqueness identityUniqueness;
+    private final com.fitcore.gym.repository.GymRepository gyms;
     private final ActiveMembershipRepository activeMembershipRepository;
     private final MembershipPlanRepository membershipPlanRepository;
     private final TrainerProfileRepository trainerProfileRepository;
@@ -61,32 +66,64 @@ public class AdminService {
 
     public AdminDashboardDto getDashboard() {
         List<AdminUserDto> users = getUsers();
-        List<TrainerProfileDto> trainers = trainerProfileRepository.findAll().stream()
-                .map(trainerService::mapToDto)
-                .collect(Collectors.toList());
-        List<MembershipPlanDto> plans = membershipPlanRepository.findAll().stream()
-                .map(membershipService::mapToDto)
-                .collect(Collectors.toList());
+        List<TrainerProfileDto> trainers =
+                trainerProfileRepository.findAllByGymId(tenantAccess.gym()).stream()
+                        .map(trainerService::mapToDto)
+                        .collect(Collectors.toList());
+        List<MembershipPlanDto> plans =
+                membershipPlanRepository.findAllByGymId(tenantAccess.gym()).stream()
+                        .map(membershipService::mapToDto)
+                        .collect(Collectors.toList());
         List<AttendanceDto> attendance = getAttendance();
 
         LocalDate date = LocalDate.now(clock.withZone(ZoneOffset.UTC));
-        var currentByUser = activeMembershipRepository.findByStatus(MembershipStatus.ACTIVE).stream()
-                .filter(item -> item.isCurrentOn(date)).collect(Collectors.groupingBy(item -> item.getUser().getId()));
-        List<ActiveMembership> currentMemberships = currentByUser.values().stream().filter(items -> items.size() == 1)
-                .map(items -> items.get(0)).toList();
-        long needsReview = currentByUser.values().stream().filter(items -> items.size() > 1).count();
-        BigDecimal revenue = currentMemberships.stream()
-                .map(item -> item.getPlan().getPrice())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var currentByUser =
+                activeMembershipRepository
+                        .findByGymIdAndStatus(tenantAccess.gym(), MembershipStatus.ACTIVE)
+                        .stream()
+                        .filter(item -> item.isCurrentOn(date))
+                        .collect(Collectors.groupingBy(item -> item.getUser().getId()));
+        List<ActiveMembership> currentMemberships =
+                currentByUser.values().stream()
+                        .filter(items -> items.size() == 1)
+                        .map(items -> items.get(0))
+                        .toList();
+        long needsReview =
+                currentByUser.values().stream().filter(items -> items.size() > 1).count();
+        BigDecimal revenue =
+                currentMemberships.stream()
+                        .map(item -> item.getPlan().getPrice())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return AdminDashboardDto.builder()
-                .adminCards(List.of(
-                        card("Total Members", String.valueOf(userRepository.countByRole(Role.MEMBER)), "Registered members", "sky"),
-                        card("Active Members", String.valueOf(currentMemberships.size()), needsReview == 0
-                                ? "Active subscriptions" : needsReview + " users need membership review", "emerald"),
-                        card("Trainers", String.valueOf(userRepository.countByRole(Role.TRAINER)), "Trainer accounts", "amber"),
-                        card("Revenue", "$" + revenue.intValue(), "Active subscriptions", "emerald")
-                ))
+                .adminCards(
+                        List.of(
+                                card(
+                                        "Total Members",
+                                        String.valueOf(
+                                                userRepository.countByGymIdAndRole(
+                                                        tenantAccess.gym(), Role.MEMBER)),
+                                        "Registered members",
+                                        "sky"),
+                                card(
+                                        "Active Members",
+                                        String.valueOf(currentMemberships.size()),
+                                        needsReview == 0
+                                                ? "Active subscriptions"
+                                                : needsReview + " users need membership review",
+                                        "emerald"),
+                                card(
+                                        "Trainers",
+                                        String.valueOf(
+                                                userRepository.countByGymIdAndRole(
+                                                        tenantAccess.gym(), Role.TRAINER)),
+                                        "Trainer accounts",
+                                        "amber"),
+                                card(
+                                        "Revenue",
+                                        "$" + revenue.intValue(),
+                                        "Active subscriptions",
+                                        "emerald")))
                 .membershipGrowth(buildMembershipGrowth())
                 .revenueAnalytics(buildRevenueAnalytics())
                 .adminAttendanceAnalytics(buildAttendanceAnalytics())
@@ -98,34 +135,32 @@ public class AdminService {
     }
 
     public List<AdminUserDto> getUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findAllByGymId(tenantAccess.gym()).stream()
                 .map(this::mapUser)
                 .collect(Collectors.toList());
     }
 
     public AdminUserDto updateUser(UUID userId, UserUpdateRequest request) {
-        if (request.getRole() == Role.OWNER) {
-            throw new BadRequestException("OWNER appointment requires a separate ownership workflow");
+        if (request.getRole() == null) {
+            throw new BadRequestException(
+                    "OWNER appointment requires a separate ownership workflow");
         }
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
-            if (!existing.getId().equals(userId)) {
-                throw new DuplicateResourceException("Email already in use");
-            }
-        });
+        User user = managedUser(userId);
+        identityUniqueness.requireAvailable(request.getEmail(), userId);
 
+        tenantAccess.assign(request.getRole().role());
+        user.setAuthzVersion(user.getAuthzVersion() + 1);
         user.setFullName(request.getFullName());
         user.setEmail(request.getEmail());
-        user.setRole(request.getRole());
+        user.setRole(request.getRole().role());
         user.setFitnessGoal(request.getFitnessGoal());
         user.setEnabled(request.getEnabled() == null || request.getEnabled());
         return mapUser(userRepository.save(user));
     }
 
     public void disableUser(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = managedUser(userId);
+        user.setAuthzVersion(user.getAuthzVersion() + 1);
         user.setEnabled(false);
         userRepository.save(user);
     }
@@ -135,42 +170,44 @@ public class AdminService {
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new BadRequestException("Password is required for new trainer accounts");
         }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateResourceException("Email already in use");
-        }
+        identityUniqueness.requireAvailable(request.getEmail(), null);
 
-        User trainerUser = User.builder()
-                .gymId(managedGymId())
-                .fullName(request.getFullName())
-                .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .role(Role.TRAINER)
-                .fitnessGoal(request.getSpecialization())
-                .enabled(true)
-                .build();
+        User trainerUser =
+                User.builder()
+                        .gymId(managedGymId())
+                        .fullName(request.getFullName())
+                        .email(request.getEmail())
+                        .passwordHash(passwordEncoder.encode(request.getPassword()))
+                        .role(Role.TRAINER)
+                        .fitnessGoal(request.getSpecialization())
+                        .enabled(true)
+                        .build();
         trainerUser = userRepository.save(trainerUser);
 
-        TrainerProfile profile = TrainerProfile.builder()
-                .gymId(trainerUser.getGymId())
-                .user(trainerUser)
-                .specialization(request.getSpecialization())
-                .experienceYears(request.getExperienceYears() == null ? 0 : request.getExperienceYears())
-                .bio(request.getBio())
-                .build();
+        TrainerProfile profile =
+                TrainerProfile.builder()
+                        .gymId(trainerUser.getGymId())
+                        .user(trainerUser)
+                        .specialization(request.getSpecialization())
+                        .experienceYears(
+                                request.getExperienceYears() == null
+                                        ? 0
+                                        : request.getExperienceYears())
+                        .bio(request.getBio())
+                        .build();
 
         return trainerService.mapToDto(trainerProfileRepository.save(profile));
     }
 
     public TrainerProfileDto updateTrainer(Long trainerId, TrainerUpsertRequest request) {
-        TrainerProfile profile = trainerProfileRepository.findById(trainerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
-        User trainerUser = profile.getUser();
+        TrainerProfile profile =
+                trainerProfileRepository
+                        .findByIdAndGymId(trainerId, tenantAccess.gym())
+                        .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
+        User trainerUser = managedUser(profile.getUser().getId());
+        trainerUser.setAuthzVersion(trainerUser.getAuthzVersion() + 1);
 
-        userRepository.findByEmail(request.getEmail()).ifPresent(existing -> {
-            if (!existing.getId().equals(trainerUser.getId())) {
-                throw new DuplicateResourceException("Email already in use");
-            }
-        });
+        identityUniqueness.requireAvailable(request.getEmail(), trainerUser.getId());
 
         trainerUser.setFullName(request.getFullName());
         trainerUser.setEmail(request.getEmail());
@@ -181,34 +218,42 @@ public class AdminService {
         userRepository.save(trainerUser);
 
         profile.setSpecialization(request.getSpecialization());
-        profile.setExperienceYears(request.getExperienceYears() == null ? 0 : request.getExperienceYears());
+        profile.setExperienceYears(
+                request.getExperienceYears() == null ? 0 : request.getExperienceYears());
         profile.setBio(request.getBio());
         return trainerService.mapToDto(trainerProfileRepository.save(profile));
     }
 
     public void disableTrainer(Long trainerId) {
-        TrainerProfile profile = trainerProfileRepository.findById(trainerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
-        User user = profile.getUser();
+        TrainerProfile profile =
+                trainerProfileRepository
+                        .findByIdAndGymId(trainerId, tenantAccess.gym())
+                        .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
+        User user = managedUser(profile.getUser().getId());
+        user.setAuthzVersion(user.getAuthzVersion() + 1);
         user.setEnabled(false);
         userRepository.save(user);
     }
 
     public MembershipPlanDto createMembershipPlan(MembershipPlanDto request) {
-        MembershipPlan plan = MembershipPlan.builder()
-                .gymId(managedGymId())
-                .name(request.getName())
-                .price(request.getPrice())
-                .durationMonths(request.getDurationMonths())
-                .features(request.getFeatures())
-                .recommended(Boolean.TRUE.equals(request.getRecommended()))
-                .build();
+        MembershipPlan plan =
+                MembershipPlan.builder()
+                        .gymId(managedGymId())
+                        .name(request.getName())
+                        .price(request.getPrice())
+                        .durationMonths(request.getDurationMonths())
+                        .features(request.getFeatures())
+                        .recommended(Boolean.TRUE.equals(request.getRecommended()))
+                        .build();
         return membershipService.mapToDto(membershipPlanRepository.save(plan));
     }
 
     public MembershipPlanDto updateMembershipPlan(Long planId, MembershipPlanDto request) {
-        MembershipPlan plan = membershipPlanRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Membership plan not found"));
+        MembershipPlan plan =
+                membershipPlanRepository
+                        .findByIdAndGymId(planId, tenantAccess.gym())
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Membership plan not found"));
         plan.setName(request.getName());
         plan.setPrice(request.getPrice());
         plan.setDurationMonths(request.getDurationMonths());
@@ -218,35 +263,54 @@ public class AdminService {
     }
 
     public void deleteMembershipPlan(Long planId) {
-        MembershipPlan plan = membershipPlanRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Membership plan not found"));
-        if (activeMembershipRepository.existsByPlan(plan)) {
+        MembershipPlan plan =
+                membershipPlanRepository
+                        .findByIdAndGymId(planId, tenantAccess.gym())
+                        .orElseThrow(
+                                () -> new ResourceNotFoundException("Membership plan not found"));
+        if (activeMembershipRepository.existsByGymIdAndPlanId(tenantAccess.gym(), plan.getId())) {
             throw new BadRequestException("Cannot delete a plan that has membership history");
         }
         membershipPlanRepository.delete(plan);
     }
 
     public List<AttendanceDto> getAttendance() {
-        return attendanceRepository.findAllByOrderByCheckInTimeDesc().stream()
+        return attendanceRepository
+                .findAllByGymIdOrderByCheckInTimeDesc(tenantAccess.gym())
+                .stream()
                 .map(trackingService::mapToDto)
                 .collect(Collectors.toList());
     }
 
     private UUID managedGymId() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof User account)
-                || account.getGymId() == null) {
-            throw new ForbiddenException("A gym assignment is required");
-        }
-        return account.getGymId();
+        return tenantAccess.manager().gymId();
+    }
+
+    private User managedUser(UUID id) {
+        UUID gym = managedGymId();
+        gyms.findByIdForUpdate(gym)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym not found"));
+        User target =
+                userRepository
+                        .findByIdAndGymIdForUpdate(id, gym)
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        tenantAccess.manageTarget(target);
+        return target;
     }
 
     private AdminUserDto mapUser(User user) {
+        tenantAccess.requireOwned(user);
         LocalDate date = LocalDate.now(clock.withZone(ZoneOffset.UTC));
-        var current = activeMembershipRepository.findByUserOrderByStartDateDesc(user).stream()
-                .filter(item -> item.isCurrentOn(date)).toList();
-        String membership = current.size() > 1 ? "Review required"
-                : current.isEmpty() ? "None" : current.get(0).getPlan().getName();
+        var current =
+                activeMembershipRepository
+                        .findByGymIdAndUserIdOrderByStartDateDesc(tenantAccess.gym(), user.getId())
+                        .stream()
+                        .filter(item -> item.isCurrentOn(date))
+                        .toList();
+        String membership =
+                current.size() > 1
+                        ? "Review required"
+                        : current.isEmpty() ? "None" : current.get(0).getPlan().getName();
         return AdminUserDto.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
@@ -260,56 +324,83 @@ public class AdminService {
     }
 
     private List<ChartPointDto> buildMembershipGrowth() {
-        List<User> members = userRepository.findByRole(Role.MEMBER);
+        List<User> members = userRepository.findByGymIdAndRole(tenantAccess.gym(), Role.MEMBER);
         YearMonth current = YearMonth.now();
         return IntStream.rangeClosed(0, 5)
                 .mapToObj(index -> current.minusMonths(5L - index))
-                .map(month -> ChartPointDto.builder()
-                        .label(month.format(MONTH_LABEL))
-                        .members((int) members.stream()
-                                .filter(member -> member.getCreatedAt() != null)
-                                .filter(member -> !member.getCreatedAt().toLocalDate().isAfter(month.atEndOfMonth()))
-                                .count())
-                        .build())
+                .map(
+                        month ->
+                                ChartPointDto.builder()
+                                        .label(month.format(MONTH_LABEL))
+                                        .members(
+                                                (int)
+                                                        members.stream()
+                                                                .filter(
+                                                                        member ->
+                                                                                member
+                                                                                                .getCreatedAt()
+                                                                                        != null)
+                                                                .filter(
+                                                                        member ->
+                                                                                !member.getCreatedAt()
+                                                                                        .toLocalDate()
+                                                                                        .isAfter(
+                                                                                                month
+                                                                                                        .atEndOfMonth()))
+                                                                .count())
+                                        .build())
                 .collect(Collectors.toList());
     }
 
     private List<ChartPointDto> buildRevenueAnalytics() {
         YearMonth current = YearMonth.now();
-        List<ActiveMembership> memberships = activeMembershipRepository.findAll();
+        List<ActiveMembership> memberships =
+                activeMembershipRepository.findAllByGymId(tenantAccess.gym());
         return IntStream.rangeClosed(0, 5)
                 .mapToObj(index -> current.minusMonths(5L - index))
-                .map(month -> {
-                    BigDecimal revenue = memberships.stream()
-                            .filter(item -> YearMonth.from(item.getStartDate()).equals(month))
-                            .map(item -> item.getPlan().getPrice())
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    return ChartPointDto.builder()
-                            .label(month.format(MONTH_LABEL))
-                            .revenue(revenue.doubleValue())
-                            .build();
-                })
+                .map(
+                        month -> {
+                            BigDecimal revenue =
+                                    memberships.stream()
+                                            .filter(
+                                                    item ->
+                                                            YearMonth.from(item.getStartDate())
+                                                                    .equals(month))
+                                            .map(item -> item.getPlan().getPrice())
+                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                            return ChartPointDto.builder()
+                                    .label(month.format(MONTH_LABEL))
+                                    .revenue(revenue.doubleValue())
+                                    .build();
+                        })
                 .collect(Collectors.toList());
     }
 
     private List<ChartPointDto> buildAttendanceAnalytics() {
         LocalDate today = LocalDate.now();
-        List<Attendance> attendance = attendanceRepository.findByCheckInDateBetween(today.minusDays(6), today);
+        List<Attendance> attendance =
+                attendanceRepository.findByGymIdAndCheckInDateBetween(
+                        tenantAccess.gym(), today.minusDays(6), today);
         return IntStream.rangeClosed(0, 6)
                 .mapToObj(index -> today.minusDays(6L - index))
-                .map(date -> ChartPointDto.builder()
-                        .label(date.getDayOfWeek().name().substring(0, 3))
-                        .visits((int) attendance.stream().filter(item -> date.equals(item.getCheckInDate())).count())
-                        .build())
+                .map(
+                        date ->
+                                ChartPointDto.builder()
+                                        .label(date.getDayOfWeek().name().substring(0, 3))
+                                        .visits(
+                                                (int)
+                                                        attendance.stream()
+                                                                .filter(
+                                                                        item ->
+                                                                                date.equals(
+                                                                                        item
+                                                                                                .getCheckInDate()))
+                                                                .count())
+                                        .build())
                 .collect(Collectors.toList());
     }
 
     private StatCardDto card(String title, String value, String detail, String tone) {
-        return StatCardDto.builder()
-                .title(title)
-                .value(value)
-                .detail(detail)
-                .tone(tone)
-                .build();
+        return StatCardDto.builder().title(title).value(value).detail(detail).tone(tone).build();
     }
 }

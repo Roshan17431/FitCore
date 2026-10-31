@@ -9,14 +9,18 @@ import com.fitcore.gym.entity.User;
 import com.fitcore.gym.entity.WorkoutExerciseLog;
 import com.fitcore.gym.entity.WorkoutLog;
 import com.fitcore.gym.entity.WorkoutPlan;
+import com.fitcore.gym.exception.ResourceNotFoundException;
 import com.fitcore.gym.repository.ExerciseRepository;
 import com.fitcore.gym.repository.UserRepository;
 import com.fitcore.gym.repository.WorkoutExerciseLogRepository;
 import com.fitcore.gym.repository.WorkoutLogRepository;
 import com.fitcore.gym.repository.WorkoutPlanRepository;
+import com.fitcore.gym.security.TenantAccess;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,8 +28,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 public class WorkoutService {
+    private final TenantAccess tenantAccess;
 
     private final WorkoutLogRepository workoutLogRepository;
     private final WorkoutExerciseLogRepository workoutExerciseLogRepository;
@@ -34,53 +40,71 @@ public class WorkoutService {
     private final WorkoutPlanRepository workoutPlanRepository;
 
     public List<ExerciseDto> getAllExercises() {
-        return exerciseRepository.findAll().stream()
+        return exerciseRepository.findAllByGymId(tenantAccess.gym()).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     public List<WorkoutPlanDto> getWorkoutPlans() {
-        return workoutPlanRepository.findAll().stream()
+        return workoutPlanRepository.findAllByGymId(tenantAccess.gym()).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<WorkoutLogDto> getUserWorkoutLogs(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        return workoutLogRepository.findByUserOrderByDateDesc(user).stream()
+        return workoutLogRepository
+                .findByGymIdAndUserIdOrderByDateDesc(tenantAccess.gym(), user.getId())
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public WorkoutLogDto logWorkout(UUID userId, WorkoutLogDto request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        WorkoutLog workoutLog = WorkoutLog.builder().gymId(user.getGymId())
-                .user(user)
-                .date(request.getDate() != null ? request.getDate() : LocalDate.now())
-                .durationMinutes(request.getDurationMinutes())
-                .notes(request.getNotes())
-                .build();
+        if (request.getExercises() != null)
+            for (var entry : request.getExercises()) {
+                if (entry == null
+                        || entry.getExercise() == null
+                        || entry.getExercise().getId() == null)
+                    throw new com.fitcore.gym.exception.BadRequestException(
+                            "Exercise reference is required");
+                exerciseRepository
+                        .findByIdAndGymId(entry.getExercise().getId(), tenantAccess.gym())
+                        .orElseThrow(() -> new ResourceNotFoundException("Exercise not found"));
+            }
+        WorkoutLog workoutLog =
+                WorkoutLog.builder()
+                        .gymId(user.getGymId())
+                        .user(user)
+                        .date(request.getDate() != null ? request.getDate() : LocalDate.now())
+                        .durationMinutes(request.getDurationMinutes())
+                        .notes(request.getNotes())
+                        .build();
 
         workoutLog = workoutLogRepository.save(workoutLog);
 
         if (request.getExercises() != null && !request.getExercises().isEmpty()) {
             for (WorkoutExerciseLogDto exDto : request.getExercises()) {
-                Exercise exercise = exerciseRepository.findById(exDto.getExercise().getId())
-                        .orElseThrow(() -> new RuntimeException("Exercise not found"));
+                Exercise exercise =
+                        exerciseRepository
+                                .findByIdAndGymId(exDto.getExercise().getId(), tenantAccess.gym())
+                                .orElseThrow(
+                                        () -> new ResourceNotFoundException("Exercise not found"));
 
-                WorkoutExerciseLog exLog = WorkoutExerciseLog.builder().gymId(workoutLog.getGymId())
-                        .workoutLog(workoutLog)
-                        .exercise(exercise)
-                        .setsCompleted(exDto.getSetsCompleted())
-                        .repsCompleted(exDto.getRepsCompleted())
-                        .weightUsed(exDto.getWeightUsed())
-                        .build();
+                WorkoutExerciseLog exLog =
+                        WorkoutExerciseLog.builder()
+                                .gymId(workoutLog.getGymId())
+                                .workoutLog(workoutLog)
+                                .exercise(exercise)
+                                .setsCompleted(exDto.getSetsCompleted())
+                                .repsCompleted(exDto.getRepsCompleted())
+                                .weightUsed(exDto.getWeightUsed())
+                                .build();
 
                 workoutExerciseLogRepository.save(exLog);
             }
@@ -90,6 +114,7 @@ public class WorkoutService {
     }
 
     private ExerciseDto mapToDto(Exercise exercise) {
+        tenantAccess.requireOwned(exercise);
         return ExerciseDto.builder()
                 .id(exercise.getId())
                 .name(exercise.getName())
@@ -103,9 +128,13 @@ public class WorkoutService {
     }
 
     private WorkoutLogDto mapToDto(WorkoutLog workoutLog) {
-        List<WorkoutExerciseLogDto> exercises = workoutExerciseLogRepository.findByWorkoutLog(workoutLog).stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
+        tenantAccess.requireOwned(workoutLog);
+        List<WorkoutExerciseLogDto> exercises =
+                workoutExerciseLogRepository
+                        .findByGymIdAndWorkoutLogId(tenantAccess.gym(), workoutLog.getId())
+                        .stream()
+                        .map(this::mapToDto)
+                        .collect(Collectors.toList());
 
         return WorkoutLogDto.builder()
                 .id(workoutLog.getId())
@@ -118,6 +147,7 @@ public class WorkoutService {
     }
 
     private WorkoutExerciseLogDto mapToDto(WorkoutExerciseLog exLog) {
+        tenantAccess.requireOwned(exLog);
         return WorkoutExerciseLogDto.builder()
                 .id(exLog.getId())
                 .workoutLogId(exLog.getWorkoutLog().getId())
@@ -129,6 +159,7 @@ public class WorkoutService {
     }
 
     private WorkoutPlanDto mapToDto(WorkoutPlan plan) {
+        tenantAccess.requireOwned(plan);
         return WorkoutPlanDto.builder()
                 .id(plan.getId())
                 .level(plan.getLevel())

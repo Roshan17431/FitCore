@@ -8,9 +8,12 @@ import com.fitcore.gym.entity.User;
 import com.fitcore.gym.repository.AttendanceRepository;
 import com.fitcore.gym.repository.ProgressMetricRepository;
 import com.fitcore.gym.repository.UserRepository;
+import com.fitcore.gym.security.TenantAccess;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,8 +22,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 public class TrackingService {
+    private final TenantAccess tenantAccess;
 
     private final ProgressMetricRepository progressMetricRepository;
     private final AttendanceRepository attendanceRepository;
@@ -28,56 +33,67 @@ public class TrackingService {
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public ProgressMetricDto logProgress(UUID userId, ProgressMetricDto request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        ProgressMetric metric = ProgressMetric.builder().gymId(user.getGymId())
-                .user(user)
-                .logDate(request.getLogDate() != null ? request.getLogDate() : LocalDate.now())
-                .weight(request.getWeight())
-                .bodyFatPercentage(request.getBodyFatPercentage())
-                .chest(request.getChest())
-                .waist(request.getWaist())
-                .arms(request.getArms())
-                .legs(request.getLegs())
-                .build();
+        ProgressMetric metric =
+                ProgressMetric.builder()
+                        .gymId(user.getGymId())
+                        .user(user)
+                        .logDate(
+                                request.getLogDate() != null
+                                        ? request.getLogDate()
+                                        : LocalDate.now())
+                        .weight(request.getWeight())
+                        .bodyFatPercentage(request.getBodyFatPercentage())
+                        .chest(request.getChest())
+                        .waist(request.getWaist())
+                        .arms(request.getArms())
+                        .legs(request.getLegs())
+                        .build();
 
         return mapToDto(progressMetricRepository.save(metric));
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<ProgressMetricDto> getUserProgress(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        return progressMetricRepository.findByUserOrderByLogDateDesc(user).stream()
+        return progressMetricRepository
+                .findByGymIdAndUserIdOrderByLogDateDesc(tenantAccess.gym(), user.getId())
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public AttendanceDto checkIn(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        var openAttendance = attendanceRepository.findFirstByUserAndCheckOutTimeIsNullOrderByCheckInTimeDesc(user);
+        var openAttendance =
+                attendanceRepository
+                        .findFirstByGymIdAndUserIdAndCheckOutTimeIsNullOrderByCheckInTimeDesc(
+                                tenantAccess.gym(), user.getId());
         if (openAttendance.isPresent()) {
             return mapToDto(openAttendance.get());
         }
 
-        Attendance attendance = Attendance.builder().gymId(user.getGymId())
-                .user(user)
-                .checkInDate(LocalDate.now())
-                .checkInTime(LocalDateTime.now())
-                .build();
+        Attendance attendance =
+                Attendance.builder()
+                        .gymId(user.getGymId())
+                        .user(user)
+                        .checkInDate(LocalDate.now())
+                        .checkInTime(LocalDateTime.now())
+                        .build();
 
         return mapToDto(attendanceRepository.save(attendance));
     }
 
     @PreAuthorize("@recordAccess.attendance(authentication, #attendanceId)")
     public AttendanceDto checkOut(Long attendanceId) {
-        Attendance attendance = attendanceRepository.findById(attendanceId)
-                .orElseThrow(() -> new RuntimeException("Attendance record not found"));
+        Attendance attendance =
+                attendanceRepository
+                        .findByIdAndGymId(attendanceId, tenantAccess.gym())
+                        .orElseThrow(() -> new RuntimeException("Attendance record not found"));
 
         attendance.setCheckOutTime(LocalDateTime.now());
 
@@ -86,15 +102,17 @@ public class TrackingService {
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<AttendanceDto> getUserAttendance(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        return attendanceRepository.findByUserOrderByCheckInTimeDesc(user).stream()
+        return attendanceRepository
+                .findByGymIdAndUserIdOrderByCheckInTimeDesc(tenantAccess.gym(), user.getId())
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     public ProgressMetricDto mapToDto(ProgressMetric metric) {
+        tenantAccess.requireOwned(metric);
         return ProgressMetricDto.builder()
                 .id(metric.getId())
                 .userId(metric.getUser().getId())
@@ -109,6 +127,7 @@ public class TrackingService {
     }
 
     public AttendanceDto mapToDto(Attendance attendance) {
+        tenantAccess.requireOwned(attendance);
         return AttendanceDto.builder()
                 .id(attendance.getId())
                 .userId(attendance.getUser().getId())

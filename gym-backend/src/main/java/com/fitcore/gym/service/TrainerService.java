@@ -13,9 +13,12 @@ import com.fitcore.gym.exception.ResourceNotFoundException;
 import com.fitcore.gym.repository.TrainerProfileRepository;
 import com.fitcore.gym.repository.TrainerSessionRepository;
 import com.fitcore.gym.repository.UserRepository;
+import com.fitcore.gym.security.TenantAccess;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
@@ -25,8 +28,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 public class TrainerService {
+    private final TenantAccess tenantAccess;
 
     private final TrainerProfileRepository trainerProfileRepository;
     private final TrainerSessionRepository trainerSessionRepository;
@@ -35,7 +40,7 @@ public class TrainerService {
     private final Clock clock;
 
     public List<TrainerProfileDto> getAllTrainers() {
-        return trainerProfileRepository.findAll().stream()
+        return trainerProfileRepository.findAllByGymId(tenantAccess.gym()).stream()
                 .filter(profile -> profile.getUser().isEnabled())
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -45,11 +50,15 @@ public class TrainerService {
     @Transactional
     public TrainerSessionDto bookSession(UUID memberId, Long trainerId, TrainerSessionDto request) {
         // Lock in this order for every booking: it serializes both member and trainer contention.
-        User member = userRepository.findByIdForUpdate(memberId)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
+        User member =
+                userRepository
+                        .findByIdAndGymIdForUpdate(memberId, tenantAccess.gym())
+                        .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
 
-        TrainerProfile trainer = trainerProfileRepository.findByIdForUpdate(trainerId)
-                .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
+        TrainerProfile trainer =
+                trainerProfileRepository
+                        .findByIdAndGymIdForUpdate(trainerId, tenantAccess.gym())
+                        .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
 
         if (!member.isEnabled() || !trainer.getUser().isEnabled()) {
             throw new BadRequestException("Both accounts must be active to book a trainer session");
@@ -60,29 +69,45 @@ public class TrainerService {
         }
 
         validateTimes(request);
-        TrainerAvailability.requireAvailable(trainer.getAvailableSlots(), request.getSessionDate(),
-                request.getStartTime(), request.getEndTime());
+        TrainerAvailability.requireAvailable(
+                trainer.getAvailableSlots(),
+                request.getSessionDate(),
+                request.getStartTime(),
+                request.getEndTime());
 
-        // Query after obtaining both locks, so a waiting booking sees the previous committed insert.
-        if (trainerSessionRepository.existsScheduledOverlap(trainerId, memberId, request.getSessionDate(),
-                request.getStartTime(), request.getEndTime(), SessionStatus.SCHEDULED)) {
-            throw new DuplicateResourceException("The trainer or member already has a session during this time");
+        // Query after obtaining both locks, so a waiting booking sees the previous committed
+        // insert.
+        if (trainerSessionRepository.existsScheduledOverlap(
+                tenantAccess.gym(),
+                trainerId,
+                memberId,
+                request.getSessionDate(),
+                request.getStartTime(),
+                request.getEndTime(),
+                SessionStatus.SCHEDULED)) {
+            throw new DuplicateResourceException(
+                    "The trainer or member already has a session during this time");
         }
 
-        TrainerSession session = TrainerSession.builder().gymId(member.getGymId())
-                .member(member)
-                .trainer(trainer)
-                .sessionDate(request.getSessionDate())
-                .startTime(request.getStartTime())
-                .endTime(request.getEndTime())
-                .status(SessionStatus.SCHEDULED)
-                .build();
+        TrainerSession session =
+                TrainerSession.builder()
+                        .gymId(member.getGymId())
+                        .member(member)
+                        .trainer(trainer)
+                        .sessionDate(request.getSessionDate())
+                        .startTime(request.getStartTime())
+                        .endTime(request.getEndTime())
+                        .status(SessionStatus.SCHEDULED)
+                        .build();
 
         return mapToDto(trainerSessionRepository.save(session));
     }
 
     private void validateTimes(TrainerSessionDto request) {
-        if (request == null || request.getSessionDate() == null || request.getStartTime() == null || request.getEndTime() == null) {
+        if (request == null
+                || request.getSessionDate() == null
+                || request.getStartTime() == null
+                || request.getEndTime() == null) {
             throw new BadRequestException("Session date, start time and end time are required");
         }
         // Hibernate's TIME binder and PostgreSQL can round fractional times differently.
@@ -93,22 +118,28 @@ public class TrainerService {
         if (!request.getEndTime().isAfter(request.getStartTime())) {
             throw new BadRequestException("End time must be after start time on the same day");
         }
-        if (!request.getSessionDate().atTime(request.getStartTime()).toInstant(ZoneOffset.UTC).isAfter(clock.instant())) {
+        if (!request.getSessionDate()
+                .atTime(request.getStartTime())
+                .toInstant(ZoneOffset.UTC)
+                .isAfter(clock.instant())) {
             throw new BadRequestException("Session start must be in the future (UTC)");
         }
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #memberId)")
     public List<TrainerSessionDto> getMemberSessions(UUID memberId) {
-        User member = userRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found"));
+        User member = tenantAccess.requireUser(memberId);
 
-        return trainerSessionRepository.findByMemberOrderBySessionDateAscStartTimeAsc(member).stream()
+        return trainerSessionRepository
+                .findByGymIdAndMemberIdOrderBySessionDateAscStartTimeAsc(
+                        tenantAccess.gym(), member.getId())
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     public TrainerProfileDto mapToDto(TrainerProfile profile) {
+        tenantAccess.requireOwned(profile);
         return TrainerProfileDto.builder()
                 .id(profile.getId())
                 .user(userService.mapToDto(profile.getUser()))
@@ -122,6 +153,7 @@ public class TrainerService {
     }
 
     public TrainerSessionDto mapToDto(TrainerSession session) {
+        tenantAccess.requireOwned(session);
         return TrainerSessionDto.builder()
                 .id(session.getId())
                 .member(userService.mapToDto(session.getMember()))

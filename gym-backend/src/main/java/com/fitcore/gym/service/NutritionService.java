@@ -14,9 +14,12 @@ import com.fitcore.gym.repository.FoodLogRepository;
 import com.fitcore.gym.repository.NutritionGoalRepository;
 import com.fitcore.gym.repository.NutritionPlanRepository;
 import com.fitcore.gym.repository.UserRepository;
+import com.fitcore.gym.security.TenantAccess;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -25,8 +28,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 @RequiredArgsConstructor
 public class NutritionService {
+    private final TenantAccess tenantAccess;
 
     private final NutritionGoalRepository nutritionGoalRepository;
     private final FoodLogRepository foodLogRepository;
@@ -43,38 +48,55 @@ public class NutritionService {
         int carbs = logs.stream().mapToInt(log -> valueOrZero(log.getCarbs())).sum();
         int fat = logs.stream().mapToInt(log -> valueOrZero(log.getFat())).sum();
 
-        int calorieGoal = goal != null && goal.getTargetCalories() != null ? goal.getTargetCalories() : 0;
-        int proteinGoal = goal != null && goal.getTargetProtein() != null ? goal.getTargetProtein() : 0;
+        int calorieGoal =
+                goal != null && goal.getTargetCalories() != null ? goal.getTargetCalories() : 0;
+        int proteinGoal =
+                goal != null && goal.getTargetProtein() != null ? goal.getTargetProtein() : 0;
         int carbsGoal = goal != null && goal.getTargetCarbs() != null ? goal.getTargetCarbs() : 0;
         int fatGoal = goal != null && goal.getTargetFat() != null ? goal.getTargetFat() : 0;
 
         return NutritionDashboardDto.builder()
-                .nutritionCards(List.of(
-                        card("Daily Calories", calories + " kcal", "Goal: " + calorieGoal + " kcal", "emerald"),
-                        card("Protein Intake", protein + " g", "Goal: " + proteinGoal + " g", "sky"),
-                        card("Carbs Intake", carbs + " g", "Goal: " + carbsGoal + " g", "amber"),
-                        card("Fat Intake", fat + " g", "Goal: " + fatGoal + " g", "rose")
-                ))
-                .calorieTracker(CalorieTrackerDto.builder()
-                        .dailyGoal(calorieGoal)
-                        .consumedCalories(calories)
-                        .remainingCalories(Math.max(calorieGoal - calories, 0))
-                        .build())
+                .nutritionCards(
+                        List.of(
+                                card(
+                                        "Daily Calories",
+                                        calories + " kcal",
+                                        "Goal: " + calorieGoal + " kcal",
+                                        "emerald"),
+                                card(
+                                        "Protein Intake",
+                                        protein + " g",
+                                        "Goal: " + proteinGoal + " g",
+                                        "sky"),
+                                card(
+                                        "Carbs Intake",
+                                        carbs + " g",
+                                        "Goal: " + carbsGoal + " g",
+                                        "amber"),
+                                card("Fat Intake", fat + " g", "Goal: " + fatGoal + " g", "rose")))
+                .calorieTracker(
+                        CalorieTrackerDto.builder()
+                                .dailyGoal(calorieGoal)
+                                .consumedCalories(calories)
+                                .remainingCalories(Math.max(calorieGoal - calories, 0))
+                                .build())
                 .build();
     }
 
     public List<NutritionPlanDto> getNutritionPlans() {
-        return nutritionPlanRepository.findAll().stream()
+        return nutritionPlanRepository.findAllByGymId(tenantAccess.gym()).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public NutritionGoalDto setGoal(UUID userId, NutritionGoalDto request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        NutritionGoal goal = nutritionGoalRepository.findByUser(user).orElse(new NutritionGoal());
+        NutritionGoal goal =
+                nutritionGoalRepository
+                        .findByGymIdAndUserId(tenantAccess.gym(), user.getId())
+                        .orElse(new NutritionGoal());
         goal.setUser(user);
         goal.setGymId(user.getGymId());
         goal.setTargetCalories(request.getTargetCalories());
@@ -87,45 +109,55 @@ public class NutritionService {
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public NutritionGoalDto getGoal(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        return nutritionGoalRepository.findByUser(user)
+        return nutritionGoalRepository
+                .findByGymIdAndUserId(tenantAccess.gym(), user.getId())
                 .map(this::mapToDto)
                 .orElse(null);
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public FoodLogDto logFood(UUID userId, FoodLogDto request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        FoodLog log = FoodLog.builder().gymId(user.getGymId())
-                .user(user)
-                .mealName(request.getMealName())
-                .mealType(request.getMealType())
-                .calories(request.getCalories())
-                .protein(request.getProtein())
-                .carbs(request.getCarbs())
-                .fat(request.getFat())
-                .logDate(request.getLogDate() != null ? request.getLogDate() : LocalDate.now())
-                .logTime(request.getLogTime() != null ? request.getLogTime() : LocalTime.now())
-                .build();
+        FoodLog log =
+                FoodLog.builder()
+                        .gymId(user.getGymId())
+                        .user(user)
+                        .mealName(request.getMealName())
+                        .mealType(request.getMealType())
+                        .calories(request.getCalories())
+                        .protein(request.getProtein())
+                        .carbs(request.getCarbs())
+                        .fat(request.getFat())
+                        .logDate(
+                                request.getLogDate() != null
+                                        ? request.getLogDate()
+                                        : LocalDate.now())
+                        .logTime(
+                                request.getLogTime() != null
+                                        ? request.getLogTime()
+                                        : LocalTime.now())
+                        .build();
 
         return mapToDto(foodLogRepository.save(log));
     }
 
     @PreAuthorize("@recordAccess.user(authentication, #userId)")
     public List<FoodLogDto> getDailyLogs(UUID userId, LocalDate date) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = tenantAccess.requireUser(userId);
 
-        return foodLogRepository.findByUserAndLogDateOrderByLogTimeDesc(user, date).stream()
+        return foodLogRepository
+                .findByGymIdAndUserIdAndLogDateOrderByLogTimeDesc(
+                        tenantAccess.gym(), user.getId(), date)
+                .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     private NutritionGoalDto mapToDto(NutritionGoal goal) {
+        tenantAccess.requireOwned(goal);
         return NutritionGoalDto.builder()
                 .id(goal.getId())
                 .userId(goal.getUser().getId())
@@ -137,6 +169,7 @@ public class NutritionService {
     }
 
     private FoodLogDto mapToDto(FoodLog log) {
+        tenantAccess.requireOwned(log);
         return FoodLogDto.builder()
                 .id(log.getId())
                 .userId(log.getUser().getId())
@@ -152,6 +185,7 @@ public class NutritionService {
     }
 
     private NutritionPlanDto mapToDto(NutritionPlan plan) {
+        tenantAccess.requireOwned(plan);
         return NutritionPlanDto.builder()
                 .id(plan.getId())
                 .category(plan.getCategory())
@@ -164,12 +198,7 @@ public class NutritionService {
     }
 
     private StatCardDto card(String title, String value, String detail, String tone) {
-        return StatCardDto.builder()
-                .title(title)
-                .value(value)
-                .detail(detail)
-                .tone(tone)
-                .build();
+        return StatCardDto.builder().title(title).value(value).detail(detail).tone(tone).build();
     }
 
     private int valueOrZero(Integer value) {
