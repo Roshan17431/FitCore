@@ -4,7 +4,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,12 +24,13 @@ public class SecurityRequestLoggingFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
+            @NonNull FilterChain filterChain)
+            throws ServletException, IOException {
         long start = System.currentTimeMillis();
         String authorizationHeader = request.getHeader("Authorization");
 
-        log.info("Incoming request: method={} path={} origin={} contentType={} hasAuthorization={}",
+        log.info(
+                "Incoming request: method={} path={} origin={} contentType={} hasAuthorization={}",
                 request.getMethod(),
                 request.getRequestURI(),
                 request.getHeader("Origin"),
@@ -38,28 +41,44 @@ public class SecurityRequestLoggingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            String user = authentication == null || !authentication.isAuthenticated()
-                    ? "anonymous"
-                    : authentication.getName();
-            String authorities = authentication == null ? "[]" : authentication.getAuthorities().toString();
-            Object matchedEndpoint = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+            String user =
+                    authentication == null || !authentication.isAuthenticated()
+                            ? "anonymous"
+                            : authentication.getName();
+            String authorities =
+                    authentication == null ? "[]" : authentication.getAuthorities().toString();
+            Object trusted = request.getAttribute("fitcore.tenantActor");
+            String gym = "none";
+            if (trusted instanceof TenantActor actor) {
+                user = actor.userId().toString();
+                gym = actor.gymId().toString();
+                authorities = "[ROLE_" + actor.role() + "]";
+            }
+            Object matchedEndpoint =
+                    request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
             long elapsedMs = System.currentTimeMillis() - start;
 
             if (response.getStatus() == HttpServletResponse.SC_FORBIDDEN) {
-                log.warn("Request completed with 403: method={} path={} matchedEndpoint={} user={} authorities={} elapsedMs={}",
+                log.warn(
+                        "Request completed with 403: method={} path={} matchedEndpoint={} user={}"
+                            + " gym={} authorities={} elapsedMs={}",
                         request.getMethod(),
                         request.getRequestURI(),
                         matchedEndpoint == null ? "unmatched" : matchedEndpoint,
                         user,
+                        gym,
                         authorities,
                         elapsedMs);
             } else {
-                log.info("Request completed: status={} method={} path={} matchedEndpoint={} user={} authorities={} elapsedMs={}",
+                log.info(
+                        "Request completed: status={} method={} path={} matchedEndpoint={} user={}"
+                            + " gym={} authorities={} elapsedMs={}",
                         response.getStatus(),
                         request.getMethod(),
                         request.getRequestURI(),
                         matchedEndpoint == null ? "unmatched" : matchedEndpoint,
                         user,
+                        gym,
                         authorities,
                         elapsedMs);
             }

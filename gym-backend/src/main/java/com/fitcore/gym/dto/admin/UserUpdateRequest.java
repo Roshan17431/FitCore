@@ -1,9 +1,9 @@
 package com.fitcore.gym.dto.admin;
 
-import com.fitcore.gym.domain.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,11 +23,8 @@ public class UserUpdateRequest {
     private String email;
 
     @NotNull(message = "Role is required")
-    private Role role;
+    private AssignableGymRole role;
 
     private String fitnessGoal;
     private Boolean enabled;
-    @jakarta.validation.constraints.AssertTrue(message="OWNER assignment requires an explicit ownership procedure")
-    public boolean isRoleAssignable() { return role != Role.OWNER; }
-
 }
