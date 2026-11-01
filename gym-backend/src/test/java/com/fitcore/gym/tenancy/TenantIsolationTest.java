@@ -14,6 +14,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -33,7 +34,7 @@ import java.util.stream.*;
 
 /** Signed HTTP requests through the actual backend and Flyway-created PostgreSQL schema. */
 @EnabledIfEnvironmentVariable(named = "FITCORE_TENANCY_TEST_TOKEN", matches = "[a-f0-9]{64}")
-@SpringBootTest
+@SpringBootTest(properties = "fitcore.onboarding.demo-enabled=true")
 @AutoConfigureMockMvc
 @Transactional
 class TenantIsolationTest {
@@ -583,6 +584,14 @@ class TenantIsolationTest {
                         .map(e -> e.method + " " + e.path.replaceAll("\\{[^}]+}", "{}"))
                         .collect(Collectors.toCollection(TreeSet::new));
         expected.add("GET /api/auth/me");
+        expected.addAll(
+                List.of(
+                        "POST /api/auth/register-owner",
+                        "GET /api/gym",
+                        "PATCH /api/gym",
+                        "GET /api/gym/invitations",
+                        "POST /api/gym/invitations",
+                        "DELETE /api/gym/invitations/{}"));
         assertThat(actual).isEqualTo(expected);
         assertThat(Endpoint.values()).hasSize(44);
     }
@@ -976,5 +985,372 @@ class TenantIsolationTest {
                                                 .isEqualTo("42501"));
             }
         }
+    }
+
+    @Test
+    void onboardingCreatesCommittedGymAndOwner() throws Exception {
+        mvc.perform(
+                        post("/api/auth/register-owner")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"fullName\":\"Demo"
+                                            + " Owner\",\"email\":\"newowner@fixture.invalid\",\"password\":\"StrongPass!2026\",\"gymName\":\"Demo"
+                                            + " Gym\",\"slug\":\"demo-gym\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("user.role").value("OWNER"));
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void invitationLifecycleAndTrainerRole() throws Exception {
+        var response =
+                mvc.perform(
+                                post("/api/gym/invitations")
+                                        .header("Authorization", token(a.owner()))
+                                        .contentType("application/json")
+                                        .content(
+                                                "{\"email\":\"invite@fixture.invalid\",\"role\":\"TRAINER\"}"))
+                        .andExpect(status().isCreated())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        var node = tools.jackson.databind.json.JsonMapper.builder().build().readTree(response);
+        assertThat(node.get("invitationToken").asText()).hasSize(43);
+        mvc.perform(get("/api/gym/invitations").header("Authorization", token(a.owner())))
+                .andExpect(status().isOk())
+                .andExpect(
+                        content()
+                                .string(
+                                        org.hamcrest.Matchers.not(
+                                                org.hamcrest.Matchers.containsString(
+                                                        node.get("invitationToken").asText()))));
+        mvc.perform(
+                        delete("/api/gym/invitations/" + node.get("id").asText())
+                                .header("Authorization", token(b.owner())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void gymInformationIsScopedAndOwnerOnlyEditable() throws Exception {
+        mvc.perform(get("/api/gym").header("Authorization", token(a.member())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("id").value(a.gym().getId().toString()));
+        mvc.perform(
+                        patch("/api/gym")
+                                .header("Authorization", token(a.admin()))
+                                .contentType("application/json")
+                                .content("{\"name\":\"Changed\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(
+                        patch("/api/gym")
+                                .header("Authorization", token(a.owner()))
+                                .contentType("application/json")
+                                .content("{\"name\":\"Changed\"}"))
+                .andExpect(status().isOk());
+    }
+
+    String ownerBody(String email, String slug) {
+        return "{\"fullName\":\"Synthetic Owner\",\"email\":\""
+                + email
+                + "\",\"password\":\"StrongPass!2026\",\"gymName\":\"Synthetic Gym\",\"slug\":\""
+                + slug
+                + "\"}";
+    }
+
+    String acceptance(String email, String token) {
+        return "{\"fullName\":\"Invited Person\",\"email\":\""
+                + email
+                + "\",\"password\":\"StrongPass!2026\",\"invitationToken\":\""
+                + token
+                + "\"}";
+    }
+
+    tools.jackson.databind.JsonNode invitation(Fixture f, String email, String role)
+            throws Exception {
+        return tools.jackson.databind.json.JsonMapper.builder()
+                .build()
+                .readTree(
+                        mvc.perform(
+                                        post("/api/gym/invitations")
+                                                .header("Authorization", token(f.admin()))
+                                                .contentType("application/json")
+                                                .content(
+                                                        "{\"email\":\""
+                                                                + email
+                                                                + "\",\"role\":\""
+                                                                + role
+                                                                + "\"}"))
+                                .andExpect(status().isCreated())
+                                .andReturn()
+                                .getResponse()
+                                .getContentAsString());
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void ownerSignupDuplicatesLeaveNoOrphansAndBothGymsWork() throws Exception {
+        for (int n = 0; n < 2; n++) {
+            String email = UUID.randomUUID() + "@fixture.invalid",
+                    slug = "gym-" + UUID.randomUUID();
+            String body = ownerBody(email, slug);
+            var response =
+                    mvc.perform(
+                                    post("/api/auth/register-owner")
+                                            .contentType("application/json")
+                                            .content(body))
+                            .andExpect(status().isOk())
+                            .andReturn()
+                            .getResponse()
+                            .getContentAsString();
+            var json = tools.jackson.databind.json.JsonMapper.builder().build().readTree(response);
+            mvc.perform(
+                            get("/api/gym")
+                                    .header(
+                                            "Authorization",
+                                            "Bearer " + json.get("token").asText()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("id").value(json.get("user").get("gymId").asText()));
+            long count = jdbc.queryForObject("select count(*) from gyms", Long.class);
+            mvc.perform(
+                            post("/api/auth/register-owner")
+                                    .contentType("application/json")
+                                    .content(body))
+                    .andExpect(status().isConflict());
+            mvc.perform(
+                            post("/api/auth/register-owner")
+                                    .contentType("application/json")
+                                    .content(
+                                            ownerBody(
+                                                    UUID.randomUUID() + "@fixture.invalid", slug)))
+                    .andExpect(status().isConflict());
+            assertThat(jdbc.queryForObject("select count(*) from gyms", Long.class))
+                    .isEqualTo(count);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"MEMBER", "TRAINER"})
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void invitationAcceptanceBindsIdentityAndCannotReplay(String role) throws Exception {
+        for (Fixture f : List.of(a, b)) {
+            String email = UUID.randomUUID() + "@fixture.invalid";
+            var issued = invitation(f, email, role);
+            String secret = issued.get("invitationToken").asText();
+            mvc.perform(
+                            post("/api/auth/register")
+                                    .contentType("application/json")
+                                    .content(acceptance("wrong@fixture.invalid", secret)))
+                    .andExpect(status().isBadRequest());
+            var r =
+                    mvc.perform(
+                                    post("/api/auth/register")
+                                            .contentType("application/json")
+                                            .content(acceptance(email, secret)))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("user.gymId").value(f.gym().getId().toString()))
+                            .andExpect(jsonPath("user.role").value(role))
+                            .andReturn()
+                            .getResponse()
+                            .getContentAsString();
+            var node = tools.jackson.databind.json.JsonMapper.builder().build().readTree(r);
+            mvc.perform(
+                            get("/api/auth/me")
+                                    .header(
+                                            "Authorization",
+                                            "Bearer " + node.get("token").asText()))
+                    .andExpect(status().isOk());
+            mvc.perform(
+                            post("/api/auth/register")
+                                    .contentType("application/json")
+                                    .content(acceptance(email, secret)))
+                    .andExpect(status().isBadRequest());
+            assertThat(
+                            jdbc.queryForObject(
+                                    "select token_hash from gym_invitations where id=?",
+                                    String.class,
+                                    UUID.fromString(issued.get("id").asText())))
+                    .doesNotContain(secret);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"expired", "revoked", "collision"})
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void unusableInvitationsCannotCreateOrConsumeAccounts(String reason) throws Exception {
+        String email = UUID.randomUUID() + "@fixture.invalid";
+        var issued = invitation(a, email, "MEMBER");
+        UUID id = UUID.fromString(issued.get("id").asText());
+        if (reason.equals("expired"))
+            jdbc.update(
+                    "update gym_invitations set expires_at=timestamp '2000-01-01 00:00:00' where"
+                        + " id=?",
+                    id);
+        if (reason.equals("revoked"))
+            mvc.perform(
+                            delete("/api/gym/invitations/" + id)
+                                    .header("Authorization", token(a.owner())))
+                    .andExpect(status().isNoContent());
+        if (reason.equals("collision"))
+            new org.springframework.transaction.support.TransactionTemplate(transactions)
+                    .executeWithoutResult(
+                            status -> {
+                                user(b.gym(), Role.MEMBER, "Collision").setEmail(email);
+                                em.flush();
+                            });
+        long count = jdbc.queryForObject("select count(*) from users", Long.class);
+        mvc.perform(
+                        post("/api/auth/register")
+                                .contentType("application/json")
+                                .content(acceptance(email, issued.get("invitationToken").asText())))
+                .andExpect(status().is(reason.equals("collision") ? 409 : 400));
+        assertThat(jdbc.queryForObject("select count(*) from users", Long.class)).isEqualTo(count);
+        assertThat(
+                        jdbc.queryForObject(
+                                "select accepted_at from gym_invitations where id=?",
+                                Object.class,
+                                id))
+                .isNull();
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void concurrentAcceptanceAndSignupHaveOneWinner() throws Exception {
+        String email = UUID.randomUUID() + "@fixture.invalid";
+        String secret = invitation(a, email, "MEMBER").get("invitationToken").asText();
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            for (boolean owner : List.of(false, true)) {
+                String path = owner ? "/api/auth/register-owner" : "/api/auth/register";
+                String body =
+                        owner
+                                ? ownerBody(
+                                        UUID.randomUUID() + "@fixture.invalid",
+                                        "race-" + UUID.randomUUID())
+                                : acceptance(email, secret);
+                var start = new java.util.concurrent.CountDownLatch(1);
+                List<java.util.concurrent.Future<Integer>> results = new ArrayList<>();
+                for (int n = 0; n < 2; n++)
+                    results.add(
+                            pool.submit(
+                                    () -> {
+                                        start.await();
+                                        return mvc.perform(
+                                                        post(path)
+                                                                .contentType("application/json")
+                                                                .content(body))
+                                                .andReturn()
+                                                .getResponse()
+                                                .getStatus();
+                                    }));
+                start.countDown();
+                List<Integer> statuses = new ArrayList<>();
+                for (var r : results)
+                    statuses.add(r.get(20, java.util.concurrent.TimeUnit.SECONDS));
+                assertThat(statuses).containsExactlyInAnyOrder(200, owner ? 409 : 400);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void revocationWhileAcceptanceWaitsCannotCreateAccount() throws Exception {
+        String email = UUID.randomUUID() + "@fixture.invalid";
+        var issued = invitation(a, email, "MEMBER");
+        UUID id = UUID.fromString(issued.get("id").asText());
+        var pool = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try (var c = datasource.getConnection()) {
+            c.setAutoCommit(false);
+            try (var lock = c.prepareStatement("select id from gyms where id=? for update")) {
+                lock.setObject(1, a.gym().getId());
+                lock.execute();
+            }
+            var accepting =
+                    pool.submit(
+                            () ->
+                                    mvc.perform(
+                                                    post("/api/auth/register")
+                                                            .contentType("application/json")
+                                                            .content(
+                                                                    acceptance(
+                                                                            email,
+                                                                            issued.get(
+                                                                                            "invitationToken")
+                                                                                    .asText())))
+                                            .andReturn()
+                                            .getResponse()
+                                            .getStatus());
+            boolean waiting = false;
+            for (int n = 0; n < 100; n++) {
+                if (jdbc.queryForObject(
+                                "select count(*) from pg_stat_activity where usename=current_user"
+                                    + " and wait_event_type='Lock'",
+                                Long.class)
+                        > 0) {
+                    waiting = true;
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            assertThat(waiting).as("Acceptance reached the held gym lock").isTrue();
+            try (var revoke =
+                    c.prepareStatement("update gym_invitations set revoked_at=? where id=?")) {
+                revoke.setObject(1, java.time.LocalDateTime.of(2000, 1, 1, 0, 0));
+                revoke.setObject(2, id);
+                revoke.executeUpdate();
+            }
+            c.commit();
+            assertThat(accepting.get(15, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(400);
+            assertThat(
+                            jdbc.queryForObject(
+                                    "select count(*) from users where email=?", Long.class, email))
+                    .isZero();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @Transactional(
+            propagation = org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED)
+    void onboardingRejectsPrivilegeAndTenantOverrides() throws Exception {
+        String body =
+                ownerBody(UUID.randomUUID() + "@fixture.invalid", "forged-" + UUID.randomUUID());
+        for (String extra : List.of("\"role\":\"OWNER\"", "\"gymId\":\"" + a.gym().getId() + "\""))
+            mvc.perform(
+                            post("/api/auth/register-owner")
+                                    .contentType("application/json")
+                                    .content(
+                                            body.substring(0, body.length() - 1)
+                                                    + ","
+                                                    + extra
+                                                    + "}"))
+                    .andExpect(status().isBadRequest());
+        mvc.perform(
+                        post("/api/gym/invitations")
+                                .header("Authorization", token(a.member()))
+                                .contentType("application/json")
+                                .content(
+                                        "{\"email\":\"denied@fixture.invalid\",\"role\":\"MEMBER\"}"))
+                .andExpect(status().isForbidden());
+        for (String role : List.of("OWNER", "ADMIN"))
+            mvc.perform(
+                            post("/api/gym/invitations")
+                                    .header("Authorization", token(a.owner()))
+                                    .contentType("application/json")
+                                    .content(
+                                            "{\"email\":\"denied@fixture.invalid\",\"role\":\""
+                                                    + role
+                                                    + "\"}"))
+                    .andExpect(status().isBadRequest());
     }
 }

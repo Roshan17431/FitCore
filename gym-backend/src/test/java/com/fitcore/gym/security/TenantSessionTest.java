@@ -329,4 +329,31 @@ class TenantSessionTest {
             assertThat(jdbc.queryForList("select * from users order by id")).isEqualTo(before);
         }
     }
+
+    @Test
+    void ownerSignupRemainsDisabledInOrdinaryConfiguration() throws Exception {
+        mvc.perform(
+                        post("/api/auth/register-owner")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"fullName\":\"Demo"
+                                            + " Owner\",\"email\":\"owner@fixture.invalid\",\"password\":\"StrongPass!2026\",\"gymName\":\"Demo"
+                                            + " Gym\",\"slug\":\"demo-gym\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void publicSignupRateLimitIsEnforcedOverHttp() throws Exception {
+        for (int n = 0; n < 51; n++)
+            mvc.perform(
+                            post("/api/auth/register-owner")
+                                    .with(
+                                            r -> {
+                                                r.setRemoteAddr("198.51.100.99");
+                                                return r;
+                                            })
+                                    .contentType("application/json")
+                                    .content("{}"))
+                    .andExpect(status().is(n < 50 ? 400 : 429));
+    }
 }
