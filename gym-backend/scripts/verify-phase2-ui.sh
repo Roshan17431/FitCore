@@ -12,6 +12,8 @@ backend_pid=""
 vite_pid=""
 browser_started=false
 runtime_dir=""
+onboarding_demo="${FITCORE_VERIFY_OWNER_UI:-false}"
+[[ "$onboarding_demo" == true || "$onboarding_demo" == false ]] || exit 64
 
 for executable in docker java node curl lsof mktemp; do
   command -v "$executable" >/dev/null 2>&1 || { echo "Missing required executable: $executable" >&2; exit 1; }
@@ -134,7 +136,7 @@ SQL
     --spring.datasource.username=fitcore_phase2_e2e \
     --spring.datasource.password=fitcore-phase2-local-disposable-only \
     --spring.flyway.enabled=true --spring.jpa.hibernate.ddl-auto=validate --spring.jpa.show-sql=false \
-    --spring.sql.init.mode=never --aws.s3.enabled=false \
+    --spring.sql.init.mode=never --aws.s3.enabled=false --fitcore.onboarding.demo-enabled="$onboarding_demo" \
     --jwt.secret=fitcore-phase2-public-local-e2e-signing-key-for-disposable-verification-only-2026 \
     --jwt.expiration-ms=3600000 --cors.allowed-origins=http://127.0.0.1:5175
 ) >"$artifact_dir/backend.log" 2>&1 &
@@ -274,6 +276,17 @@ SQL
     tail -n 15 "$artifact_dir/tenant-isolation-integrated.log" >&2
     exit 1
   fi
+fi
+if [[ "$onboarding_demo" == true ]]; then
+  (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/owner-integrated.pw.js"
+  ) >"$artifact_dir/owner-integrated.log" 2>&1 || { tail -n 15 "$artifact_dir/owner-integrated.log" >&2; exit 1; }
+else
+  (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/onboarding-disabled.pw.js"
+  ) >"$artifact_dir/onboarding-disabled.log" 2>&1 || { tail -n 15 "$artifact_dir/onboarding-disabled.log" >&2; exit 1; }
 fi
 kill -0 "$backend_pid" && kill -0 "$vite_pid"
 docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
