@@ -28,6 +28,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.fitcore.gym.service.OnboardingService onboarding;
+
+    @PostMapping("/register-owner")
+    public AuthResponse registerOwner(
+            @Valid @RequestBody com.fitcore.gym.dto.gym.OwnerRegistrationRequest request) {
+        return onboarding.owner(request);
+    }
 
     @org.springframework.web.bind.annotation.GetMapping("/me")
     public com.fitcore.gym.dto.user.SessionUserDto me() {

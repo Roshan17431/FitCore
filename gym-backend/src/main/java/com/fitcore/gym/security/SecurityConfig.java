@@ -69,6 +69,7 @@ public class SecurityConfig {
                                                 HttpMethod.POST,
                                                 "/api/auth/login",
                                                 "/api/auth/register",
+                                                "/api/auth/register-owner",
                                                 "/api/auth/forgot-password")
                                         .permitAll()
                                         .requestMatchers("/api/admin/**")

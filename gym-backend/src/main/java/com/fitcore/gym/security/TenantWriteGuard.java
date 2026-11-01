@@ -60,6 +60,23 @@ public class TenantWriteGuard extends RequestBodyAdviceAdapter {
             } catch (RuntimeException invalid) {
                 throw new BadRequestException("Invalid JSON");
             }
+            if ((p.getParameterType().getSimpleName().equals("OwnerRegistrationRequest")
+                            || p.getParameterType().getSimpleName().equals("RegisterRequest"))
+                    && value instanceof Map<?, ?> map
+                    && map.containsKey("role"))
+                throw new BadRequestException("Role is not assignable");
+            java.util.Set<String> allowed =
+                    switch (p.getParameterType().getSimpleName()) {
+                        case "OwnerRegistrationRequest" ->
+                                Set.of("fullName", "email", "password", "gymName", "slug");
+                        case "GymUpdateRequest" -> Set.of("name");
+                        case "InvitationRequest" -> Set.of("email", "role");
+                        default -> null;
+                    };
+            if (allowed != null
+                    && value instanceof Map<?, ?> object
+                    && !allowed.containsAll(object.keySet()))
+                throw new BadRequestException("Unknown onboarding field");
             validate(value);
         }
         return new HttpInputMessage() {

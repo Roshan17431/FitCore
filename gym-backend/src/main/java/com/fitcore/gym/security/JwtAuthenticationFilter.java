@@ -32,6 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         && java.util.Set.of(
                                         "/api/auth/login",
                                         "/api/auth/register",
+                                        "/api/auth/register-owner",
                                         "/api/auth/forgot-password")
                                 .contains(p))
                 || ("GET".equals(r.getMethod()) && p.equals("/api/health"))
