@@ -21,8 +21,10 @@ public class AuthService {
     private final UserIdentityRepository identities;
     private final com.fitcore.gym.repository.GymRepository gyms;
 
-    public AuthResponse register(RegisterRequest ignored) {
-        throw new ForbiddenException("INVITATION_REQUIRED");
+    private final OnboardingService onboarding;
+
+    public AuthResponse register(RegisterRequest request) {
+        return onboarding.accept(request);
     }
 
     public AuthResponse login(AuthRequest request) {
