@@ -1,44 +1,5 @@
 import axios from 'axios';
 
-const redactSensitiveFields = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(redactSensitiveFields);
-  }
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entryValue]) => {
-        const normalizedKey = key.toLowerCase();
-        if (
-          normalizedKey.includes('password')
-          || normalizedKey.includes('token')
-          || normalizedKey.includes('authorization')
-        ) {
-          return [key, '[REDACTED]'];
-        }
-        return [key, redactSensitiveFields(entryValue)];
-      }),
-    );
-  }
-
-  return value;
-};
-
-const parseRequestBody = (data) => {
-  if (typeof data !== 'string') return data;
-
-  try {
-    return JSON.parse(data);
-  } catch {
-    return data;
-  }
-};
-
-const toPlainHeaders = (headers = {}) => {
-  const plainHeaders = typeof headers.toJSON === 'function' ? headers.toJSON() : { ...headers };
-  return redactSensitiveFields(plainHeaders);
-};
-
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
   return trimmedUrl.endsWith('/api') ? trimmedUrl.slice(0, -4) : trimmedUrl;
@@ -48,17 +9,6 @@ const apiBaseURL = backendBaseURL ? `${backendBaseURL}/api` : '';
 const apiConfigError = backendBaseURL
   ? ''
   : 'Missing VITE_API_BASE_URL. Set it to the backend origin, for example: https://fitcore-posv.onrender.com';
-
-const getRequestUrl = (config = {}) => {
-  const baseURL = config.baseURL || apiBaseURL;
-  const url = config.url || '';
-
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
-  return `${baseURL}${url.startsWith('/') ? '' : '/'}${url}`;
-};
 
 export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
   if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
@@ -92,73 +42,28 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const isAuthEndpoint = config.url?.startsWith('/auth/');
-    if (token && !isAuthEndpoint) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    const requestUrl = getRequestUrl(config);
-    console.info('[FitCore API] request prepared', {
-      method: (config.method || 'get').toUpperCase(),
-      url: requestUrl,
-      baseURL: config.baseURL,
-      path: config.url,
-      headers: toPlainHeaders(config.headers),
-      body: redactSensitiveFields(parseRequestBody(config.data)),
-    });
-
-    if (apiConfigError) {
-      console.error('[FitCore API] request blocked by configuration error', {
-        reason: apiConfigError,
-        requestedPath: config.url,
-        resolvedUrl: requestUrl,
-        envKeys: {
-          VITE_API_BASE_URL: Boolean(import.meta.env.VITE_API_BASE_URL),
-        },
-      });
-      return Promise.reject(new Error(apiConfigError));
-    }
-
-    return config;
-  },
-  (error) => {
-    console.error('[FitCore API] request setup failed', error);
-    return Promise.reject(error);
+const publicAuth = new Set(['/auth/login', '/auth/register', '/auth/register-owner', '/auth/forgot-password']);
+const currentToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+api.interceptors.request.use(config => {
+  if (apiConfigError) return Promise.reject(new Error(apiConfigError));
+  if (!publicAuth.has(config.url)) {
+    config.fitcoreToken = currentToken();
+    if (config.fitcoreToken) config.headers.Authorization = `Bearer ${config.fitcoreToken}`;
   }
-);
-
-api.interceptors.response.use(
-  (response) => {
-    console.info('[FitCore API] response received', {
-      status: response.status,
-      url: getRequestUrl(response.config),
-    });
-    return response;
-  },
-  (error) => {
-    console.error('[FitCore API] request failed', {
-      message: error.message,
-      code: error.code,
-      url: getRequestUrl(error.config),
-      status: error.response?.status,
-      responseBody: error.response?.data,
-      hasRequest: Boolean(error.request),
-    });
-
-    const isAuthEndpoint = error.config?.url?.startsWith('/auth/');
-    if (error.response && error.response.status === 401 && !isAuthEndpoint) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
+  return config;
+});
+api.interceptors.response.use(response => {
+  if (response.config.fitcoreToken && response.config.fitcoreToken !== currentToken()) return Promise.reject(new axios.CanceledError('Session changed'));
+  return response;
+}, error => {
+  const config = error.config || {};
+  const unavailable = error.response?.status === 403 && error.response?.data?.message === 'GYM_UNAVAILABLE';
+  if (config.fitcoreToken && config.fitcoreToken === currentToken() && (error.response?.status === 401 || unavailable)) {
+    for (const storage of [localStorage, sessionStorage]) { storage.removeItem('token'); storage.removeItem('user'); }
+    window.dispatchEvent(new CustomEvent('fitcore:session-ended', { detail: unavailable ? 'Your gym is suspended. Contact your gym owner.' : 'Your session expired. Please sign in again.' }));
   }
-);
+  return Promise.reject(error);
+});
 
 const unwrap = (response) => response.data;
 
@@ -319,8 +224,10 @@ const buildWorkoutCompletion = (logs = []) => {
 
 export const authService = {
   login: (email, password) => api.post('/auth/login', { email, password }).then(unwrap),
-  register: ({ fullName, email, password, fitnessGoal }) =>
-    api.post('/auth/register', { fullName, email, password, fitnessGoal }).then(unwrap),
+  register: ({ fullName, email, password, fitnessGoal, invitationToken }) =>
+    api.post('/auth/register', { fullName, email, password, fitnessGoal, invitationToken }).then(unwrap),
+  registerOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/register-owner', { fullName, email, password, gymName, slug }).then(unwrap),
+  me: () => api.get('/auth/me').then(unwrap),
   resetPassword: (email) => api.post('/auth/forgot-password', { email }).then(unwrap),
 };
 
@@ -480,3 +387,11 @@ export const adminService = {
 };
 
 export default api;
+
+export const gymService = {
+  get: () => api.get('/gym').then(unwrap),
+  update: ({ name }) => api.patch('/gym', { name }).then(unwrap),
+  invitations: () => api.get('/gym/invitations').then(unwrap),
+  invite: ({ email, role }) => api.post('/gym/invitations', { email, role }).then(unwrap),
+  revoke: (id) => api.delete(`/gym/invitations/${encodeURIComponent(id)}`).then(unwrap),
+};

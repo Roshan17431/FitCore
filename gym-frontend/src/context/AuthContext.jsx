@@ -1,115 +1,66 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AuthContext } from './auth-context';
 import { authService, formatApiError } from '../services/api';
+import { captureInvitation, readSessionToken, clearTrainingState, clearForeignTrainingState } from '../utils/tenant-session';
 
-const TOKEN_KEY = 'token';
-const USER_KEY = 'user';
-
-const redactAuthPayload = (payload) => ({
-  ...payload,
-  password: payload?.password ? '[REDACTED]' : payload?.password,
-  confirmPassword: payload?.confirmPassword ? '[REDACTED]' : payload?.confirmPassword,
-});
-
-const readStoredSession = () => {
-  const token = localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
-  const savedUser = localStorage.getItem(USER_KEY) || sessionStorage.getItem(USER_KEY);
-
-  if (!token || !savedUser) return null;
-
-  try {
-    return {
-      token,
-      user: JSON.parse(savedUser),
-    };
-  } catch {
-    return null;
-  }
-};
-
-const persistSession = ({ token, user }, rememberMe = true) => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(USER_KEY);
-
-  const storage = rememberMe ? localStorage : sessionStorage;
-  storage.setItem(TOKEN_KEY, token);
-  storage.setItem(USER_KEY, JSON.stringify(user));
-};
-
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
+const storedToken = readSessionToken;
+const clearSession = () => { for (const storage of [localStorage, sessionStorage]) { storage.removeItem('token'); storage.removeItem('user'); } clearTrainingState(); };
+export const AuthProvider = ({ children, initialInvitation = null }) => {
+  const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [sessionError, setSessionError] = useState('');
+  const [invitationToken, setInvitationToken] = useState(initialInvitation);
+  const generation = useRef(0);
+  const logout = useCallback(() => { generation.current++; clearSession(); setUser(null); setInvitationToken(null); setLoading(false); }, []);
+  const restore = useCallback(async () => {
+    const version = ++generation.current, token = storedToken();
+    setUser(null); setLoading(true);
+    if (!token) { setLoading(false); return; }
+    try {
+      const current = await authService.me();
+      if (version !== generation.current || storedToken() !== token) return;
+      const storage = localStorage.getItem('token') ? localStorage : sessionStorage;
+      clearForeignTrainingState(current); storage.setItem('user', JSON.stringify(current)); setUser(current); setSessionError('');
+    } catch (error) {
+      if (version === generation.current) { clearSession(); setUser(null); setSessionError(formatApiError(error, 'Unable to restore your session. Sign in again.')); }
+    } finally { if (version === generation.current) setLoading(false); }
+  }, []);
+  const clearInvitation = useCallback(() => setInvitationToken(null), []);
+  const captureIncomingInvitation = useCallback(() => {
+    if (window.location.pathname === '/register' && window.location.hash) setInvitationToken(captureInvitation());
+  }, []);
   useEffect(() => {
-    const session = readStoredSession();
-    if (session?.user) setUser(session.user);
-    setLoading(false);
-  }, []);
-
-  const login = async (email, password, rememberMe = true) => {
+    restore();
+    const ended = event => { logout(); setSessionError(event.detail); };
+    const changed = event => { if (event.key === 'token' || event.key === null) { if (!localStorage.getItem('token')) logout(); else { clearTrainingState(); restore(); } } };
+    window.addEventListener('fitcore:session-ended', ended); window.addEventListener('storage', changed); window.addEventListener('hashchange', captureIncomingInvitation);
+    const identityGeneration = generation;
+    return () => { identityGeneration.current++; window.removeEventListener('fitcore:session-ended', ended); window.removeEventListener('storage', changed); window.removeEventListener('hashchange', captureIncomingInvitation); };
+  }, [restore, logout, captureIncomingInvitation]);
+  const authenticate = async (request, remember = true) => {
+    const version = ++generation.current;
+    clearSession(); setUser(null); setSessionError('');
     try {
-      console.info('[FitCore Auth] login called', { email, rememberMe });
-      const { token, user: userData } = await authService.login(email, password);
-      persistSession({ token, user: userData }, rememberMe);
-      setUser(userData);
-      console.info('[FitCore Auth] login succeeded', { userId: userData?.id, email: userData?.email });
-      return { success: true };
+      const result = await request();
+      if (version !== generation.current) return { success: false, error: 'Session changed. Please try again.' };
+      const storage = remember ? localStorage : sessionStorage;
+      storage.setItem('token', result.token);
+      const current = await authService.me();
+      if (version !== generation.current || storedToken() !== result.token) return { success: false, error: 'Session changed. Please try again.' };
+      storage.setItem('user', JSON.stringify(current)); setUser(current); setInvitationToken(null);
+      return { success: true, user: current };
     } catch (error) {
-      console.error('[FitCore Auth] login failed', error);
-      return { 
-        success: false, 
-        error: formatApiError(error, 'Login failed. Please check your credentials.'),
-      };
+      if (version === generation.current) { clearSession(); setUser(null); }
+      return { success: false, error: formatApiError(error, 'Unable to establish your session.') };
     }
   };
-
-  const register = async (userData) => {
-    try {
-      console.info('[FitCore Auth] register called', redactAuthPayload(userData));
-      const { token, user: newUserData } = await authService.register(userData);
-      persistSession({ token, user: newUserData }, true);
-      setUser(newUserData);
-      console.info('[FitCore Auth] register succeeded', { userId: newUserData?.id, email: newUserData?.email });
-      return { success: true };
-    } catch (error) {
-      console.error('[FitCore Auth] register failed', error);
-      return { 
-        success: false, 
-        error: formatApiError(error, 'Registration failed. Please try again.'),
-      };
-    }
+  const value = {
+    user, loading, sessionError, invitationToken,
+    clearInvitation, captureIncomingInvitation,
+    refresh: async () => { const current = await authService.me(); setUser(current); return current; },
+    login: (email, password, remember = true) => authenticate(() => authService.login(email, password), remember),
+    register: input => authenticate(() => authService.register(input)),
+    registerOwner: input => authenticate(() => authService.registerOwner(input)),
+    resetPassword: async email => { try { await authService.resetPassword(email); return { success: true }; } catch (error) { return { success: false, error: formatApiError(error) }; } },
+    logout,
   };
-
-  const resetPassword = async (email) => {
-    try {
-      await authService.resetPassword(email);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: formatApiError(error, 'Reset request failed.'),
-      };
-    }
-  };
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    setUser(null);
-  }, []);
-
-  const value = useMemo(
-    () => ({ user, loading, login, register, resetPassword, logout }),
-    [user, loading, logout],
-  );
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
