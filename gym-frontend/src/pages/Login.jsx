@@ -6,9 +6,10 @@ import Card from '../components/common/Card';
 import FormField from '../components/forms/FormField';
 import { AuthContext } from '../context/auth-context';
 import AuthLayout from '../layouts/AuthLayout';
+import { dashboardPath } from '../utils/tenant-session';
 
 const Login = () => {
-  const { login } = useContext(AuthContext);
+  const { login, sessionError } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '', rememberMe: true });
@@ -34,7 +35,7 @@ const Login = () => {
     try {
       const result = await login(form.email.trim(), form.password, form.rememberMe);
       if (result.success) {
-        navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
+        navigate(result.user?.role === 'OWNER' ? '/owner' : location.state?.from?.pathname || dashboardPath(result.user), { replace: true });
       } else {
         setError(result.error);
       }
@@ -52,9 +53,9 @@ const Login = () => {
             <p className="mt-2 text-sm text-muted">Sign in to continue your fitness workspace.</p>
           </div>
 
-          {error ? (
+          {error || sessionError ? (
             <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
-              {error}
+              {error || sessionError}
             </div>
           ) : null}
 
@@ -103,8 +104,8 @@ const Login = () => {
 
           <p className="mt-6 text-center text-sm text-muted">
             New to FitCore?{' '}
-            <Link className="font-semibold text-brand" to="/register">
-              Create account
+            <Link className="font-semibold text-brand" to="/create-gym">
+              Create your gym
             </Link>
           </p>
         </Card>

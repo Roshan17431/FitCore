@@ -1,3 +1,4 @@
+import { workoutKey } from '../utils/tenant-session';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
@@ -33,7 +34,8 @@ const Workouts = ({ section = 'library' }) => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const selectedPlanId = searchParams.get('plan') || localStorage.getItem(`workoutPlan:${user?.id}`);
+  const selectionStorageKey = workoutKey(user);
+  const selectedPlanId = searchParams.get('plan') || localStorage.getItem(selectionStorageKey);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -49,6 +51,8 @@ const Workouts = ({ section = 'library' }) => {
         workoutService.getPlans(),
         workoutService.getHistory(user.id),
       ]);
+      localStorage.removeItem(`workoutPlan:${user.id}`);
+      if(selectedPlanId && !plans.some(plan => String(plan.id) === selectedPlanId)) localStorage.removeItem(selectionStorageKey);
       const selectedPlan = plans.find((plan) => String(plan.id) === selectedPlanId);
       const exercises = library.flatMap((group) => group.exercises.map((exercise) => ({ ...exercise, category: group.category })));
       const dailyExercises = selectedPlan
@@ -64,7 +68,7 @@ const Workouts = ({ section = 'library' }) => {
     } catch (requestError) {
       setError(formatApiError(requestError, 'Unable to load workouts.'));
     }
-  }, [user?.id, selectedPlanId]);
+  }, [user?.id, selectedPlanId, selectionStorageKey]);
 
   useEffect(() => {
     loadWorkouts();
@@ -202,7 +206,7 @@ const Workouts = ({ section = 'library' }) => {
                 </div>
               </div>
               <Button className="mt-auto" variant="outline" onClick={() => {
-                localStorage.setItem(`workoutPlan:${user.id}`, String(plan.id));
+                localStorage.setItem(workoutKey(user), String(plan.id));
                 navigate(`/workouts/tracker?plan=${plan.id}`);
               }}>Assign Plan</Button>
             </Card>

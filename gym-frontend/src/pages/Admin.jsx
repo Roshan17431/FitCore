@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AuthContext } from '../context/auth-context';
+import { canEditAccount } from '../utils/tenant-session';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -48,6 +50,7 @@ const tabs = [
 const statIcons = [UsersRound, ShieldCheck, UsersRound, CreditCard];
 
 const Admin = ({ section = 'dashboard' }) => {
+  const { user: actor } = useContext(AuthContext);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -182,12 +185,12 @@ const Admin = ({ section = 'dashboard' }) => {
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => { setActionError(''); setEditingUser({ ...row }); }} size="sm" variant="outline">
+          <Button disabled={!canEditAccount(actor, row)} onClick={() => { setActionError(''); setEditingUser({ ...row }); }} size="sm" variant="outline">
             Edit
           </Button>
           <Button
             aria-label={`Disable ${row.fullName}`}
-            disabled={submitting || !row.enabled}
+            disabled={submitting || !row.enabled || !canEditAccount(actor, row)}
             icon={Trash2}
             onClick={() => runAction(() => adminService.deleteUser(row.id), `${row.fullName} disabled`)}
             size="sm"
@@ -208,7 +211,7 @@ const Admin = ({ section = 'dashboard' }) => {
       header: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <Button onClick={() => {
+          <Button disabled={!canEditAccount(actor, row.user)} onClick={() => {
             setEditingTrainer(row);
             setTrainerForm({ name: row.name, email: row.email, password: '', specialization: row.specialization, experience: row.experienceYears });
             setActionError('');
@@ -217,7 +220,7 @@ const Admin = ({ section = 'dashboard' }) => {
           </Button>
           <Button
             aria-label={`Disable ${row.name}`}
-            disabled={submitting || !row.enabled}
+            disabled={submitting || !row.enabled || !canEditAccount(actor, row.user)}
             icon={Trash2}
             onClick={() => runAction(() => adminService.deleteTrainer(row.id), `${row.name} disabled`)}
             size="sm"
@@ -463,7 +466,7 @@ const Admin = ({ section = 'dashboard' }) => {
         }}>
           <FormField required label="Full name" value={editingUser.fullName} onChange={(event) => setEditingUser((current) => ({ ...current, fullName: event.target.value }))} />
           <FormField required type="email" label="Email" value={editingUser.email} onChange={(event) => setEditingUser((current) => ({ ...current, email: event.target.value }))} />
-          <FormField label="Role" options={['MEMBER', 'TRAINER', 'ADMIN']} value={editingUser.role} onChange={(event) => setEditingUser((current) => ({ ...current, role: event.target.value }))} />
+          <FormField label="Role" options={actor.role === 'OWNER' ? ['MEMBER', 'TRAINER', 'ADMIN'] : ['MEMBER', 'TRAINER']} value={editingUser.role} onChange={(event) => setEditingUser((current) => ({ ...current, role: event.target.value }))} />
           <FormField label="Fitness goal" value={editingUser.fitnessGoal || ''} onChange={(event) => setEditingUser((current) => ({ ...current, fitnessGoal: event.target.value }))} />
           <label className="flex gap-2 text-sm"><input type="checkbox" checked={editingUser.enabled} onChange={(event) => setEditingUser((current) => ({ ...current, enabled: event.target.checked }))} />Account enabled</label>
           {actionError ? <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{actionError}</p> : null}

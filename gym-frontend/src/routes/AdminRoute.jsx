@@ -5,7 +5,7 @@ import { AuthContext } from '../context/auth-context';
 const AdminRoute = () => {
   const { user } = useContext(AuthContext);
 
-  if (user?.role !== 'ADMIN') {
+  if (!['OWNER', 'ADMIN'].includes(user?.role)) {
     return <Navigate replace to="/dashboard" />;
   }
 

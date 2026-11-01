@@ -1,10 +1,18 @@
-import { lazy, Suspense, useContext } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useContext, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import { AuthContext } from './context/auth-context';
 import MainLayout from './layouts/MainLayout';
 import AdminRoute from './routes/AdminRoute';
 import ProtectedRoute from './routes/ProtectedRoute';
+import OwnerRoute from './routes/OwnerRoute';
+import { dashboardPath } from './utils/tenant-session';
+const CreateGym = lazy(() => import('./pages/CreateGym'));
+const GymWorkspace = lazy(() => import('./pages/GymWorkspace'));
+const Invitations = lazy(() => import('./pages/Invitations'));
+const TenantLayout = () => { const { user } = useContext(AuthContext); return <MainLayout key={`${user.gymId}:${user.id}:${user.authzVersion}`} />; };
+const InvitationLifecycle = () => { const location = useLocation(); const { clearInvitation, captureIncomingInvitation } = useContext(AuthContext); useEffect(() => { if (location.pathname !== '/register') clearInvitation(); else captureIncomingInvitation(); }, [location.pathname, location.hash, clearInvitation, captureIncomingInvitation]); return null; };
+const DashboardHome = () => { const { user } = useContext(AuthContext); return user.role === 'OWNER' ? <Navigate replace to='/owner' /> : <Dashboard />; };
 
 const Admin = lazy(() => import('./pages/Admin'));
 const Attendance = lazy(() => import('./pages/Attendance'));
@@ -23,21 +31,23 @@ const RootRedirect = () => {
 
   if (loading) return <LoadingSpinner label="Opening FitCore" />;
 
-  return <Navigate replace to={user ? '/dashboard' : '/login'} />;
+  return <Navigate replace to={user ? dashboardPath(user) : '/login'} />;
 };
 
 const App = () => (
   <BrowserRouter>
+    <InvitationLifecycle />
     <Suspense fallback={<LoadingSpinner label="Loading page" />}>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/create-gym" element={<CreateGym />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route element={<ProtectedRoute />}>
-          <Route element={<MainLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
+          <Route element={<TenantLayout />}>
+            <Route path="/dashboard" element={<DashboardHome />} />
 
             <Route path="/membership" element={<Navigate replace to="/membership/plans" />} />
             <Route path="/membership/plans" element={<Membership section="plans" />} />
@@ -73,7 +83,9 @@ const App = () => (
             <Route path="/attendance/history" element={<Attendance section="history" />} />
             <Route path="/attendance/statistics" element={<Attendance section="statistics" />} />
 
+            <Route element={<OwnerRoute />}><Route path="/owner" element={<GymWorkspace />} /><Route path="/gym/settings" element={<GymWorkspace settings />} /></Route>
             <Route element={<AdminRoute />}>
+              <Route path="/gym/invitations" element={<Invitations />} />
               <Route path="/admin" element={<Navigate replace to="/admin/dashboard" />} />
               <Route path="/admin/dashboard" element={<Admin section="dashboard" />} />
               <Route path="/admin/users" element={<Admin section="users" />} />

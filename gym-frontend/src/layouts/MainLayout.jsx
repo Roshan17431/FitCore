@@ -8,6 +8,7 @@ import Modal from '../components/common/Modal';
 import NotificationList from '../components/dashboard/NotificationList';
 import ThemeToggle from '../components/common/ThemeToggle';
 import { AuthContext } from '../context/auth-context';
+import { canManage } from '../utils/tenant-session';
 import { cx } from '../utils/formatters';
 import { formatApiError, notificationService } from '../services/api';
 
@@ -24,6 +25,9 @@ const navigation = [
 const adminNavigation = [{ path: '/admin/dashboard', label: 'Admin', icon: ShieldCheck }];
 
 const routeTitles = [
+  { match: '/owner', title: 'Owner Dashboard' },
+  { match: '/gym/settings', title: 'Gym Settings' },
+  { match: '/gym/invitations', title: 'Invitations' },
   { match: '/membership', title: 'Membership Management' },
   { match: '/workouts', title: 'Workout Management' },
   { match: '/nutrition', title: 'Nutrition Management' },
@@ -36,7 +40,7 @@ const routeTitles = [
 
 const SidebarLink = ({ item, onClick }) => {
   const { pathname } = useLocation();
-  const active = pathname === item.path || (item.path !== '/dashboard' && pathname.split('/')[1] === item.path.split('/')[1]);
+  const active = pathname === item.path || (!['admin', 'gym', 'owner', 'dashboard'].includes(pathname.split('/')[1]) && pathname.split('/')[1] === item.path.split('/')[1]);
   return <NavLink to={item.path} onClick={onClick} aria-current={active ? 'page' : undefined} className={cx('flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition', active ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-alt hover:text-ink')}><item.icon aria-hidden="true" className="h-[18px] w-[18px] shrink-0" /><span>{item.label}</span></NavLink>;
 };
 const SidebarBody = ({ items, user, logout, onNavigate }) => <>
@@ -63,11 +67,10 @@ const MainLayout = () => {
     return routeTitles.find((item) => location.pathname.startsWith(item.match))?.title || 'FitCore';
   }, [location.pathname]);
 
-  const visibleNavigation = user?.role === 'ADMIN' ? [...navigation, ...adminNavigation] : navigation;
+  const personal = user?.role === 'OWNER' ? navigation.map(item => item.path === '/dashboard' ? { ...item, path: '/owner', label: 'Owner Dashboard' } : item) : navigation;
+  const visibleNavigation = canManage(user) ? [...personal, ...adminNavigation, { path: '/admin/users', label: 'Members', icon: UsersRound }, { path: '/admin/trainers', label: 'Manage trainers', icon: UsersRound }, { path: '/gym/invitations', label: 'Invitations', icon: UsersRound }, ...(user.role === 'OWNER' ? [{ path: '/gym/settings', label: 'Gym Settings', icon: ShieldCheck }] : [])] : personal;
   const firstName = user?.fullName?.split(' ')[0] || 'Member';
-  const searchItems = user?.role === 'ADMIN'
-    ? [...visibleNavigation, { path: '/admin/users', label: 'Members and Users' }]
-    : visibleNavigation;
+  const searchItems = visibleNavigation;
   const searchResults = query.trim()
     ? searchItems.filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()))
     : [];
@@ -103,7 +106,7 @@ const MainLayout = () => {
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <Button aria-label="Open navigation" aria-haspopup="dialog" aria-expanded={sidebarOpen} icon={Menu} onClick={() => setSidebarOpen(true)} size="icon" variant="outline" className="lg:hidden" />
-              <div className="min-w-0"><p className="text-xs font-medium text-muted">Hello, {firstName}</p><p className="truncate text-sm font-semibold text-ink sm:text-base">{pageTitle}</p></div>
+              <div className="min-w-0"><p className="text-xs font-medium text-muted">{user.gymName || 'FitCore'} · Hello, {firstName}</p><p className="truncate text-sm font-semibold text-ink sm:text-base">{pageTitle}</p></div>
             </div>
             <div role="search" className="relative hidden w-60 shrink-0 lg:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setQuery(''); }}>
               <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-muted" />
