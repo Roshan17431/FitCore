@@ -42,7 +42,7 @@ const api = axios.create({
   },
 });
 
-const publicAuth = new Set(['/auth/login', '/auth/register', '/auth/register-owner', '/auth/forgot-password']);
+const publicAuth = new Set(['/auth/login', '/auth/register', '/auth/register-owner', '/auth/forgot-password', '/auth/registration/owner', '/auth/registration/invitation', '/auth/verification/request', '/auth/verify-email', '/auth/reset-password']);
 const currentToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 api.interceptors.request.use(config => {
   if (apiConfigError) return Promise.reject(new Error(apiConfigError));
@@ -223,6 +223,11 @@ const buildWorkoutCompletion = (logs = []) => {
 };
 
 export const authService = {
+  pendingOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/registration/owner', { fullName, email, password, gymName, slug }).then(unwrap),
+  pendingInvite: ({ fullName, email, password, invitationToken }) => api.post('/auth/registration/invitation', { fullName, email, password, invitationToken }).then(unwrap),
+  requestVerification: email => api.post('/auth/verification/request', { email }).then(unwrap),
+  verifyEmail: ({ email, token }) => api.post('/auth/verify-email', { email, token }).then(unwrap),
+  completeReset: ({ email, token, password }) => api.post('/auth/reset-password', { email, token, password }).then(unwrap),
   login: (email, password) => api.post('/auth/login', { email, password }).then(unwrap),
   register: ({ fullName, email, password, fitnessGoal, invitationToken }) =>
     api.post('/auth/register', { fullName, email, password, fitnessGoal, invitationToken }).then(unwrap),

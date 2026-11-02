@@ -29,7 +29,7 @@ const ForgotPassword = () => {
     try {
       const result = await resetPassword(normalizedEmail);
       if (result.success) {
-        setMessage('Contact your gym administrator to complete your password reset.');
+        setMessage('If this account is eligible and delivery is configured, recovery instructions will arrive. Otherwise contact your gym administrator.');
       } else {
         setError(result.error);
       }
@@ -44,7 +44,7 @@ const ForgotPassword = () => {
         <div className="mb-8">
           <p className="mb-3 text-xs font-bold uppercase tracking-[.18em] text-brand">Account recovery</p>
           <h1 className="text-3xl font-semibold sm:text-4xl text-ink">Forgot Password</h1>
-          <p className="mt-2 text-sm text-muted">Email recovery is not configured yet. Contact your gym administrator for help resetting your password.</p>
+          <p className="mt-2 text-sm text-muted">Request a recovery link. External email delivery is disabled until separately configured and approved.</p>
         </div>
 
         {error ? (

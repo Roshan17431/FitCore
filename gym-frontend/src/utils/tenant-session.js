@@ -9,7 +9,7 @@ export const clearTrainingState = () => {
   }
 };
 export const captureInvitation = () => {
-  if (window.location.pathname !== '/register') return null;
+  if (!['/register', '/secure/register'].includes(window.location.pathname)) return null;
   const params = new URLSearchParams(window.location.hash.slice(1));
   const token = params.get('invitationToken');
   if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);

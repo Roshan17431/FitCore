@@ -7,11 +7,13 @@ import AdminRoute from './routes/AdminRoute';
 import ProtectedRoute from './routes/ProtectedRoute';
 import OwnerRoute from './routes/OwnerRoute';
 import { dashboardPath } from './utils/tenant-session';
+const Signup = lazy(() => import('./pages/Signup'));
+const SecurityFlow = lazy(() => import('./pages/SecurityFlow'));
 const CreateGym = lazy(() => import('./pages/CreateGym'));
 const GymWorkspace = lazy(() => import('./pages/GymWorkspace'));
 const Invitations = lazy(() => import('./pages/Invitations'));
 const TenantLayout = () => { const { user } = useContext(AuthContext); return <MainLayout key={`${user.gymId}:${user.id}:${user.authzVersion}`} />; };
-const InvitationLifecycle = () => { const location = useLocation(); const { clearInvitation, captureIncomingInvitation } = useContext(AuthContext); useEffect(() => { if (location.pathname !== '/register') clearInvitation(); else captureIncomingInvitation(); }, [location.pathname, location.hash, clearInvitation, captureIncomingInvitation]); return null; };
+const InvitationLifecycle = () => { const location = useLocation(); const { clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity } = useContext(AuthContext); useEffect(() => { if (!['/register', '/secure/register'].includes(location.pathname)) clearInvitation(); else captureIncomingInvitation(); if (!['/verify-email', '/reset-password'].includes(location.pathname)) clearSecurity(); else captureIncomingSecurity(); }, [location.pathname, location.hash, clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity]); return null; };
 const DashboardHome = () => { const { user } = useContext(AuthContext); return user.role === 'OWNER' ? <Navigate replace to='/owner' /> : <Dashboard />; };
 
 const Admin = lazy(() => import('./pages/Admin'));
@@ -43,6 +45,10 @@ const App = () => (
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/create-gym" element={<CreateGym />} />
+        <Route path="/secure/create-gym" element={<Signup owner secure />} />
+        <Route path="/secure/register" element={<Signup secure />} />
+        <Route path="/verify-email" element={<SecurityFlow />} />
+        <Route path="/reset-password" element={<SecurityFlow reset />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route element={<ProtectedRoute />}>
