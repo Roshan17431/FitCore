@@ -356,4 +356,38 @@ class TenantSessionTest {
                                     .content("{}"))
                     .andExpect(status().is(n < 50 ? 400 : 429));
     }
+    @ParameterizedTest
+    @ValueSource(strings={"missing", "future", "after-expiry"})
+    void issuedAtIsRequiredAndBounded(String shape) throws Exception {
+        var claims = jwt.extractClaim(jwt.generateToken(member), c -> new HashMap<String,Object>(c));
+        var builder = Jwts.builder().setClaims(claims);
+        if (shape.equals("missing")) builder.setIssuedAt(null);
+        else if (shape.equals("future")) builder.setIssuedAt(new Date(System.currentTimeMillis()+120_000));
+        else builder.setIssuedAt(new Date(System.currentTimeMillis()+120_000)).setExpiration(new Date(System.currentTimeMillis()+60_000));
+        String token = builder.signWith(Keys.hmacShaKeyFor("fitcore-isolated-security-tests-only-secret-at-least-32-characters".getBytes(StandardCharsets.UTF_8)),SignatureAlgorithm.HS256).compact();
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token)).andExpect(status().isUnauthorized());
+    }
+
+    @Test void smallIssueClockSkewRemainsAccepted() throws Exception {
+        var claims=jwt.extractClaim(jwt.generateToken(member),c->new HashMap<String,Object>(c));
+        String token=Jwts.builder().setClaims(claims).setIssuedAt(new Date(System.currentTimeMillis()+10_000)).signWith(Keys.hmacShaKeyFor("fitcore-isolated-security-tests-only-secret-at-least-32-characters".getBytes(StandardCharsets.UTF_8)),SignatureAlgorithm.HS256).compact();
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token)).andExpect(status().isOk());
+    }
+
+    @Test void readinessFailsClosedWithoutExposingDatabaseDetails() throws Exception {
+        mvc.perform(get("/api/health/ready")).andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("status").value("NOT_READY"))
+            .andExpect(jsonPath("database").doesNotExist());
+        mvc.perform(get("/api/health")).andExpect(status().isOk());
+        mvc.perform(get("/api/health/ready").param("gymId",RegressionGym.ID.toString())).andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest @ValueSource(strings={"null","text","fraction","negative"})
+    void malformedIssuedAtCannotEstablishSession(String shape) throws Exception {
+        var claims=jwt.extractClaim(jwt.generateToken(member),c->new HashMap<String,Object>(c));
+        claims.put("iat",switch(shape){case "null"->null;case "text"->"not-a-date";case "fraction"->1.5;default->-1;});
+        String token=Jwts.builder().setClaims(claims).signWith(Keys.hmacShaKeyFor("fitcore-isolated-security-tests-only-secret-at-least-32-characters".getBytes(StandardCharsets.UTF_8)),SignatureAlgorithm.HS256).compact();
+        mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token)).andExpect(status().isUnauthorized());
+    }
+
 }

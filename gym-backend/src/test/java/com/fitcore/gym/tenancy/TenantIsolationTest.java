@@ -584,6 +584,8 @@ class TenantIsolationTest {
                         .map(e -> e.method + " " + e.path.replaceAll("\\{[^}]+}", "{}"))
                         .collect(Collectors.toCollection(TreeSet::new));
         expected.add("GET /api/auth/me");
+        expected.addAll(List.of("POST /api/auth/registration/owner","POST /api/auth/registration/invitation","POST /api/auth/verification/request","POST /api/auth/verify-email","POST /api/auth/reset-password"));
+        expected.add("GET /api/health/ready");
         expected.addAll(
                 List.of(
                         "POST /api/auth/register-owner",

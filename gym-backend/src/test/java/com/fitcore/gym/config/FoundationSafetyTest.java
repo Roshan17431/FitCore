@@ -51,4 +51,11 @@ class FoundationSafetyTest {
    .withPropertyValues("spring.datasource.url=jdbc:h2:mem:fixture;INIT=RUNSCRIPT FROM 'https://forbidden.invalid/test.sql'")
    .run(c->assertThat(c.getStartupFailure()).hasStackTraceContaining("Foundation build requires an owned disposable database"));
  }
+ @ParameterizedTest @ValueSource(strings={"native","framework"})
+ void forwardedIdentityNeedsExplicitTopologyReview(String strategy){
+  new ApplicationContextRunner().withUserConfiguration(FoundationSafetyConfiguration.class)
+   .withPropertyValues("spring.datasource.url=jdbc:h2:mem:isolated-regression","server.forward-headers-strategy="+strategy)
+   .run(c->assertThat(c.getStartupFailure()).hasStackTraceContaining("approved proxy policy"));
+ }
+
 }

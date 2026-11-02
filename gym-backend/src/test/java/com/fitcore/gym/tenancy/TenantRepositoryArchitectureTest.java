@@ -47,7 +47,7 @@ class TenantRepositoryArchitectureTest {
                 if (Files.readString(file).contains("UserIdentityRepository"))
                     assertThat(file.getFileName().toString())
                             .isIn(
-                                    "AuthService.java",
+                                    "AuthService.java", "AccountSecurityService.java",
                                     "CustomUserDetailsService.java",
                                     "IdentityUniqueness.java");
             }
