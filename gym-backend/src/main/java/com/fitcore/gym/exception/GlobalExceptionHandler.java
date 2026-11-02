@@ -150,7 +150,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleAllExceptions(
             Exception ex, HttpServletRequest request) {
-        log.error("Unhandled Exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+        log.error("Unhandled server error: type={} endpoint={}", ex.getClass().getSimpleName(),
+                request.getAttribute(org.springframework.web.servlet.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE));
         return buildErrorResponse(
                 new Exception("An unexpected error occurred"),
                 HttpStatus.INTERNAL_SERVER_ERROR,

@@ -34,6 +34,26 @@ public class JwtService {
     @Value("${jwt.expiration-ms}")
     private long jwtExpirationMs;
 
+    @Value("${jwt.allowed-issue-clock-skew-seconds:30}")
+    private long allowedIssueClockSkewSeconds = 30;
+
+    @jakarta.annotation.PostConstruct
+    void validateClockPolicy() {
+        if (allowedIssueClockSkewSeconds < 0 || allowedIssueClockSkewSeconds > 120)
+            throw new IllegalStateException("JWT issue clock tolerance must be between 0 and 120 seconds");
+    }
+
+    private boolean validIssueTime(Claims claims) {
+        Object issued = claims.get("iat");
+        if (!(issued instanceof Integer || issued instanceof Long)) return false;
+        Date issueTime = claims.getIssuedAt();
+        Date expiration = claims.getExpiration();
+        return issueTime != null && expiration != null
+                && issueTime.getTime() >= 0
+                && issueTime.before(expiration)
+                && issueTime.getTime() <= System.currentTimeMillis() + allowedIssueClockSkewSeconds * 1000;
+    }
+
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
@@ -68,7 +88,8 @@ public class JwtService {
         final Claims claims = extractAllClaims(token);
         final String username = claims.getSubject();
         final String version = claims.get("credentialsVersion", String.class);
-        return userDetails.isEnabled()
+        return validIssueTime(claims)
+                && userDetails.isEnabled()
                 && userDetails.isAccountNonExpired()
                 && userDetails.isAccountNonLocked()
                 && userDetails.isCredentialsNonExpired()

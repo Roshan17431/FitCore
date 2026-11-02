@@ -60,6 +60,7 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(
                                                 "/api/health",
+                                                "/api/health/ready",
                                                 "/v3/api-docs/**",
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html",
@@ -70,7 +71,8 @@ public class SecurityConfig {
                                                 "/api/auth/login",
                                                 "/api/auth/register",
                                                 "/api/auth/register-owner",
-                                                "/api/auth/forgot-password")
+                                                "/api/auth/forgot-password", "/api/auth/registration/owner", "/api/auth/registration/invitation",
+                                        "/api/auth/verification/request", "/api/auth/verify-email", "/api/auth/reset-password")
                                         .permitAll()
                                         .requestMatchers("/api/admin/**")
                                         .hasAnyRole("OWNER", "ADMIN")
@@ -101,15 +103,28 @@ public class SecurityConfig {
                         .filter(origin -> !origin.isBlank())
                         .toList();
 
-        log.info("Configured CORS allowed origin patterns: {}", origins);
-        configuration.setAllowedOriginPatterns(origins);
+        if (origins.isEmpty()) throw new IllegalStateException("An exact CORS origin allowlist is required");
+        for (String origin : origins) {
+            try {
+                var uri = java.net.URI.create(origin);
+                if (origin.contains("*") || !("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))
+                        || uri.getHost() == null || uri.getRawUserInfo() != null
+                        || uri.getRawQuery() != null || uri.getRawFragment() != null
+                        || (uri.getRawPath() != null && !uri.getRawPath().isEmpty()))
+                    throw new IllegalArgumentException();
+            } catch (IllegalArgumentException malformed) {
+                throw new IllegalStateException("CORS requires exact HTTP(S) origins without paths or wildcards");
+            }
+        }
+        log.info("Configured exact CORS origins: {}", origins);
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(
                 Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(
                 Arrays.asList(
                         "Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

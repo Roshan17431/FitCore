@@ -19,6 +19,7 @@ import java.util.*;
 public class TenantWriteGuard extends RequestBodyAdviceAdapter {
     private static final Set<String> FORBIDDEN =
             Set.of(
+                    "emailverified", "emailverifiedat",
                     "gym",
                     "gymid",
                     "tenant",

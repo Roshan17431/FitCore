@@ -20,6 +20,8 @@ public class FoundationSafetyConfiguration {
         return factory -> {
             if (env.getProperty("aws.s3.enabled", Boolean.class, false))
                 throw new IllegalStateException("Tenant assets are not implemented");
+            if(!"none".equals(env.getProperty("server.forward-headers-strategy","none")))
+                throw new IllegalStateException("Forwarded client identity needs an approved proxy policy");
             rejectAlternativeConnections(env);
             String url = env.getProperty("spring.datasource.url", "");
             // H2 is test-scoped and never bundled in the runtime JAR. No INIT scripts/URLs.

@@ -33,9 +33,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                         "/api/auth/login",
                                         "/api/auth/register",
                                         "/api/auth/register-owner",
-                                        "/api/auth/forgot-password")
+                                        "/api/auth/forgot-password", "/api/auth/registration/owner", "/api/auth/registration/invitation",
+                                        "/api/auth/verification/request", "/api/auth/verify-email", "/api/auth/reset-password")
                                 .contains(p))
-                || ("GET".equals(r.getMethod()) && p.equals("/api/health"))
+                || ("GET".equals(r.getMethod()) && java.util.Set.of("/api/health","/api/health/ready").contains(p))
                 || p.equals("/error")
                 || p.startsWith("/v3/api-docs")
                 || p.startsWith("/swagger-ui");
