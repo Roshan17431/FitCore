@@ -1,0 +1,36 @@
+name: Multi-tenant verification
+on:
+  pull_request:
+  push:
+    branches: [master, main, 'codex/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fitcore-verification-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-multi-tenant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix gym-frontend
+      - name: Install pinned browser verifier
+        shell: bash
+        run: |
+          npm install --prefix "$RUNNER_TEMP/fitcore-playwright" @playwright/cli@0.1.22
+          echo "$RUNNER_TEMP/fitcore-playwright/node_modules/.bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/fitcore-playwright/node_modules/.bin/playwright" install --with-deps chrome
+      - name: Backend, migrations, recovery, security, frontend and browser gates
+        run: ./scripts/verify-release.sh

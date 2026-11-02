@@ -41,3 +41,13 @@ test('signup native slug pattern is valid with browser Unicode-set semantics',as
   const valid=new RegExp(`^(?:${pattern})$`,'v');
   assert.equal(valid.test('northstar-gym'),true);assert.equal(valid.test('UPPER'),false);
 });
+
+test('security flows use public auth routes and whitelisted bodies',async()=>{
+  assert.equal(typeof authService.pendingOwner,'function');
+  await authService.pendingOwner({fullName:'Owner',email:'v@fixture.invalid',password:'secret',gymName:'Gym',slug:'gym',role:'OWNER'});
+  assert.equal(captured.url,'/auth/registration/owner');assert.equal(captured.headers.Authorization,undefined);assert.equal(JSON.parse(captured.data).role,undefined);
+  await authService.verifyEmail({email:'v@fixture.invalid',token:'memory-only',gymId:'forged'});
+  assert.deepEqual(JSON.parse(captured.data),{email:'v@fixture.invalid',token:'memory-only'});
+  await authService.completeReset({email:'v@fixture.invalid',token:'memory-only',password:'new-secret',role:'ADMIN'});
+  assert.deepEqual(Object.keys(JSON.parse(captured.data)).sort(),['email','password','token']);
+});

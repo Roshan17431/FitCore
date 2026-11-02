@@ -288,6 +288,12 @@ else
     "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/onboarding-disabled.pw.js"
   ) >"$artifact_dir/onboarding-disabled.log" 2>&1 || { tail -n 15 "$artifact_dir/onboarding-disabled.log" >&2; exit 1; }
 fi
+if [[ "${FITCORE_VERIFY_SECURITY_UI:-false}" == true ]]; then
+  (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/security-integrated.pw.js"
+  ) >"$artifact_dir/security-integrated.log" 2>&1 || { tail -n 12 "$artifact_dir/security-integrated.log" >&2; exit 1; }
+fi
 kill -0 "$backend_pid" && kill -0 "$vite_pid"
 docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitcore_phase2_e2e \
   --set ON_ERROR_STOP=1 >"$artifact_dir/db-final-state.log" 2>&1 <<'SQL'
