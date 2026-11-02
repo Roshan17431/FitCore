@@ -60,6 +60,6 @@ public class AuthService {
     }
 
     public void requestPasswordReset(String email) {
-        /* Generic accepted placeholder: no identity disclosure. */
+        throw new IllegalStateException("Use the gated account-security recovery flow");
     }
 }

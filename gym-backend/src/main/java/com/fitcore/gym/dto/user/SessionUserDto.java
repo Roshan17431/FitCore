@@ -14,7 +14,7 @@ public record SessionUserDto(
         boolean enabled,
         UUID gymId,
         String gymName,
-        long authzVersion) {
+        long authzVersion, boolean emailVerified) {
     public static SessionUserDto from(User u, com.fitcore.gym.entity.Gym gym) {
         return new SessionUserDto(
                 u.getId(),
@@ -25,6 +25,6 @@ public record SessionUserDto(
                 u.isEnabled(),
                 u.getGymId(),
                 gym.getName(),
-                u.getAuthzVersion());
+                u.getAuthzVersion(),u.getEmailVerifiedAt()!=null);
     }
 }

@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final com.fitcore.gym.service.AccountSecurityService accountSecurity;
     private final com.fitcore.gym.service.OnboardingService onboarding;
 
     @PostMapping("/register-owner")
@@ -78,7 +79,7 @@ public class AuthController {
             })
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        authService.requestPasswordReset(request.getEmail());
+        accountSecurity.request(request.getEmail(),true);
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 }

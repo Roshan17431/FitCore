@@ -49,6 +49,8 @@ public class User extends TenantOwnedEntity implements UserDetails {
 
     private String fitnessGoal;
 
+    private LocalDateTime emailVerifiedAt;
+
     @ManyToOne(fetch=FetchType.LAZY)
     @JoinColumn(name="gym_id", insertable=false, updatable=false)
     @lombok.ToString.Exclude @EqualsAndHashCode.Exclude

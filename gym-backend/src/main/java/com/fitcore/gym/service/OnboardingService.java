@@ -39,8 +39,9 @@ public class OnboardingService {
 
     @Value("${fitcore.onboarding.demo-enabled:false}")
     private boolean demo;
+    @Value("${fitcore.security-flows.demo-enabled:false}") private boolean securityFlows;
 
-    record Created(User user, Gym gym) {}
+    public record Created(User user, Gym gym) {}
 
     public record GymView(
             UUID id,
@@ -164,7 +165,7 @@ public class OnboardingService {
     }
 
     public IssuedInvitation invite(InvitationRequest request) {
-        enabled();
+        if(!demo && !securityFlows)enabled();
         var actor = access.manager();
         byte[] bytes = new byte[32];
         new SecureRandom().nextBytes(bytes);
@@ -282,6 +283,33 @@ public class OnboardingService {
                         }));
     }
 
+
+    /** Called only from the hash-bound challenge transaction, never from an HTTP DTO. */
+    public Created verifiedOwner(String name,String email,String hash,String gymName,String slug) {
+        requireVerificationTransaction();uniqueness.requireAvailable(email,null);
+        var gym=gyms.save(Gym.builder().name(gymName).slug(slug).status(GymStatus.ACTIVE).build());
+        var user=users.saveAndFlush(User.builder().gymId(gym.getId()).fullName(name).email(email)
+            .passwordHash(hash).role(Role.OWNER).enabled(true).emailVerifiedAt(now()).build());
+        gym.setPrimaryOwner(user);gyms.save(gym);return new Created(user,gym);
+    }
+    public Created verifiedInvite(String name,String email,String hash,String invitationHash,String goal) {
+        requireVerificationTransaction();
+        var gid=invitations.findGymIdByTokenHash(invitationHash).orElseThrow(this::invalid);
+        var gym=gyms.findByIdForUpdate(gid).orElseThrow(this::invalid);
+        var invite=invitations.findByTokenHashForUpdate(invitationHash).orElseThrow(this::invalid);
+        if(gym.getStatus()!=GymStatus.ACTIVE || invite.getAcceptedAt()!=null || invite.getRevokedAt()!=null
+                || !invite.getExpiresAt().isAfter(now()) || !invite.getEmail().equals(email)
+                || !(invite.getRole()==Role.MEMBER || invite.getRole()==Role.TRAINER))throw invalid();
+        uniqueness.requireAvailable(email,null);
+        var user=users.saveAndFlush(User.builder().gymId(gid).fullName(name).email(email).passwordHash(hash)
+            .role(invite.getRole()).fitnessGoal(goal).enabled(true).emailVerifiedAt(now()).build());
+        if(invite.getRole()==Role.TRAINER)trainers.save(TrainerProfile.builder().gymId(gid).user(user).specialization("General fitness").experienceYears(0).build());
+        invite.setAcceptedAt(now());invitations.save(invite);return new Created(user,gym);
+    }
+    private void requireVerificationTransaction() {
+        if(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
+            throw new IllegalStateException("Verification requires an atomic transaction");
+    }
     private void password(String value) {
         if (value == null
                 || value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 72
