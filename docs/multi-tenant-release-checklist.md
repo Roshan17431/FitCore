@@ -1,4 +1,4 @@
-# FitCore production readiness — Phase 6 and security closure
+# FitCore production readiness — Phase 7
 
 Date: 2026-11-01 (Asia/Kolkata). Baseline: `cf407f0e1f9cd0c8a46054066713c2318b77dd53`, isolated `codex/multi-tenant-saas` checkout. **Overall production release: BLOCKED.** This is local preparation and verification, not release approval.
 
@@ -20,7 +20,8 @@ Date: 2026-11-01 (Asia/Kolkata). Baseline: `cf407f0e1f9cd0c8a46054066713c2318b77
 | Runtime privilege/readiness contract | PASS for local fixtures; BLOCKED for production | Required DML/sequence grants, forbidden privilege/helper grants, history and DDL-contract checks; real roles/schema unverified |
 | Onboarding demo gate and disabled mail boundary | PASS | Defaults remain off; real provider selection fails closed; no actual send is implemented |
 | Verification and reset security implementation | PASS locally | Pending registration, hashed expiring single-use tokens, email-change revocation, reset JWT invalidation, actual PostgreSQL concurrency tests |
-| External delivery, provider/outbox and public production activation | BLOCKED | Disabled runtime sender; only an in-memory test sender exists; provider/domain/credentials/outbox/timing/activation approvals remain |
+| Transactional outbox, encryption/templates and retries | PASS locally | V8 atomic intents, AES-GCM external key ring, leased workers, idempotent-provider crash tests, cancellation/retention controls |
+| External delivery and production worker/public activation | BLOCKED | No network provider; provider/domain/credentials/key custody/outbox operations/timing/activation approvals remain |
 | Shared abuse protection | PASS locally | Atomic PostgreSQL counters, independent JVM coordination, fail-closed outage tests and rejected-peer accounting |
 | Production proxy/rate/capacity policy | BLOCKED | Forwarded headers ignored/unapproved processing rejected; actual proxy topology, capacity and policy require approval |
 | Browser bearer storage and CSRF/transport decision | BLOCKED | Existing local/session bearer transport preserved; XSS exposure and cookie/BFF decision remain |
@@ -63,7 +64,7 @@ Baseline: **865 backend tests passed** before changes. The complete local `./scr
 
 | Verification | Result |
 | --- | --- |
-| Full backend regression, security, PostgreSQL migration/isolation/concurrency and recovery | **912 passed, 0 failures/errors/skips** |
+| Full backend regression, security, PostgreSQL migration/isolation/concurrency and recovery | **941 passed, 0 failures/errors/skips** |
 | Frontend Node contracts/session/theme/contrast | **35 passed** |
 | Release-result checker regressions (security failure, skip, absence, zero-test suite) | **5 passed** |
 | Critical Playwright scenarios | **41 distinct passed** (53 executed groups, including12 repeated transactional/security UI groups) |
@@ -73,9 +74,9 @@ Baseline: **865 backend tests passed** before changes. The complete local `./scr
 
 Browser breakdown:8 transactional membership/booking,10 existing role/module workflows,3 two-gym analytics/real CSV,13 owner/invitation/session/ADMIN,3 gate-off and4 new security UI/session-race scenarios. See the security-closure report for the isolated delayed-response interception scope. Runtime-error/network collectors in the owner/module/isolation suites reported zero uncaught errors and zero external requests. Both owned harness invocations verified process/port/container cleanup. Browser captures are under ignored `output/playwright/phase6-2026-11-01/` (desktop light/dark, mobile owner/invitations and unavailable onboarding).
 
-Recovery ran four real custom-archive round trips (V2,V4,V5,V6) into separate disposable containers plus one corrupt-archive rejection case. It compared all table-row/sequence fingerprints, preserved historical membership overlaps/disabled administrator state/UUIDs/credentials, advanced the restored schema throughV7, checked scoped SQL reads, restored restricted ACLs and checked runtime grants and representative constraint/trigger/privilege drift. Full HTTP/browser workflows use separate fresh two-gym fixtures; production backups and application recovery against a real restored database remain untested and BLOCKED.
+Recovery ran four real custom-archive round trips (V2,V4,V5,V6) into separate disposable containers plus one corrupt-archive rejection case. It compared all table-row/sequence fingerprints, preserved historical membership overlaps/disabled administrator state/UUIDs/credentials, advanced the restored schema throughV8, checked scoped SQL reads, restored restricted ACLs and checked runtime grants and representative constraint/trigger/privilege drift. Full HTTP/browser workflows use separate fresh two-gym fixtures; production backups and application recovery against a real restored database remain untested and BLOCKED.
 
-The latest security-closure gate passed912 backend/35frontend/41browser checks; the Phase6 baseline was891/31/37 and was preserved. The final verification uses local uncommitted source based on cf407f0; there is no final release commit or remotely verified artifact. A future release must re-run required checks on its exact approved commit/artifacts.
+The latest Phase7 gate passed941 backend/35frontend/41browser checks; the security-closure gate passed912/35/41; the Phase6 baseline was891/31/37 and was preserved. The final verification uses local uncommitted source based on cf407f0; there is no final release commit or remotely verified artifact. A future release must re-run required checks on its exact approved commit/artifacts.
 
 Commands prepared/run locally: `./scripts/verify-release.sh`, `./gym-backend/scripts/rehearse-tenant-migration.sh`, frontend Node/lint/build, Python release-result checker tests, shell syntax and workflow YAML checks. All databases are synthetic, marked, harness-owned and loopback-only. Archive files are temporary and removed; test inputs and artifacts do not contain customer data or private ownership manifests. Evidence stays in the checkout's sibling `evidence/phase6-*.log` and ignored Playwright output; source and migration fingerprints are recorded privately.
 
@@ -93,6 +94,8 @@ The schema-security descriptor is deliberately scoped: production inventory must
 
 ## Detailed companion documents
 
+- [Phase7 implementation, migration, file inventory and verification](transactional-email-phase7-2026-11-02.md)
+- [Provider operations and exact approvals](transactional-email-provider-operations.md)
 - [Implemented security controls, workflow details and current evidence](security-blocker-closure-2026-11-01.md)
 - [Read-only private V3 decision checklist](v3-private-ownership-decision-checklist.md)
 - [Deployment, migration and rollback runbook](production-migration-and-recovery-runbook-2026-11-01.md)
