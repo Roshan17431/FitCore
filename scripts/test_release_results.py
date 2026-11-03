@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 CHECKER = pathlib.Path(__file__).with_name('check_release_results.py')
-REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest']
+REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest']
 
 class ReleaseResultsTest(unittest.TestCase):
     def run_check(self, changed=None, missing=None):

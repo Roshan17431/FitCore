@@ -8,8 +8,8 @@ public final class SchemaContract {
     // PostgreSQL18 re-parses the V6 enum check's array casts when pg_restore recreates it.
     // Accept exactly the two reviewed complete descriptors, not arbitrary semantic drift.
     public static final java.util.Set<String> ACCEPTED = java.util.Set.of(
-        "5f9f9f93a3f880f0bc503800cd5e83589adb7ceecfd1cfc048d3149ecf838a7c",
-        "066e6402a356035b983a81fc346a6bf15dd9cdaa4b32bff66421ea8a2e454940");
+        "7f6e327b3b23cd7ae5521130c1e21383ef93683fa3caf35d2862f4b00d97206e",
+        "260256f9538c02f81352fd57fe541eaf95f53d8db171ecbd0fdac535fe27c2f7");
     public static String fingerprint(Connection connection) throws SQLException {
         String sql = """
             select encode(sha256(convert_to(
