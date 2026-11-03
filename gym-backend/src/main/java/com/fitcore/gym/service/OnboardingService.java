@@ -35,7 +35,12 @@ public class OnboardingService {
     private final JwtService jwt;
     private final TenantAccess access;
     private final PlatformTransactionManager transactions;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+    private final jakarta.persistence.EntityManager entities;
     private final Clock clock;
+    private final com.fitcore.gym.email.TransactionalEmailSender mail;
+    @Value("${fitcore.email.outbox.enabled:false}") private boolean queued;
+    @Value("${fitcore.security.public-origin:http://127.0.0.1:5175}") private String mailOrigin;
 
     @Value("${fitcore.onboarding.demo-enabled:false}")
     private boolean demo;
@@ -189,6 +194,11 @@ public class OnboardingService {
                                             .createdBy(creator)
                                             .expiresAt(now().plusHours(48))
                                             .build());
+                    if(queued){
+                        entities.flush();
+                        var rendered=com.fitcore.gym.email.EmailTemplates.render(invite.getRole()==Role.TRAINER?"TRAINER_INVITE":"MEMBER_INVITE",view().name(),mailOrigin+"/secure/register#invitationToken="+secret,"48 hours");
+                        mail.enqueue(new com.fitcore.gym.email.EmailIntent(actor.gymId(),null,invite.getId(),invite.getRole()==Role.TRAINER?"TRAINER_INVITE":"MEMBER_INVITE",invite.getEmail(),rendered.subject(),rendered.text(),rendered.html(),invite.getExpiresAt()));
+                    }
                     return new IssuedInvitation(
                             invite.getId(), secret, invite.getExpiresAt(), invite.getRole());
                 });
@@ -226,6 +236,7 @@ public class OnboardingService {
                         throw new BadRequestException("Invitation is already accepted");
                     if (i.getRevokedAt() == null) i.setRevokedAt(now());
                     invitations.save(i);
+                    cancelInvitationMail(i.getId(),actor.gymId());
                     return true;
                 });
     }
@@ -279,6 +290,7 @@ public class OnboardingService {
                                                 .build());
                             i.setAcceptedAt(now());
                             invitations.save(i);
+                            cancelInvitationMail(i.getId(),gym.getId());
                             return new Created(user, gym);
                         }));
     }
@@ -304,8 +316,9 @@ public class OnboardingService {
         var user=users.saveAndFlush(User.builder().gymId(gid).fullName(name).email(email).passwordHash(hash)
             .role(invite.getRole()).fitnessGoal(goal).enabled(true).emailVerifiedAt(now()).build());
         if(invite.getRole()==Role.TRAINER)trainers.save(TrainerProfile.builder().gymId(gid).user(user).specialization("General fitness").experienceYears(0).build());
-        invite.setAcceptedAt(now());invitations.save(invite);return new Created(user,gym);
+        invite.setAcceptedAt(now());invitations.save(invite);cancelInvitationMail(invite.getId(),gid);return new Created(user,gym);
     }
+    private void cancelInvitationMail(UUID id,UUID gym){com.fitcore.gym.email.EmailOutbox.cancelInvitation(jdbc,id,gym);}
     private void requireVerificationTransaction() {
         if(!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Verification requires an atomic transaction");

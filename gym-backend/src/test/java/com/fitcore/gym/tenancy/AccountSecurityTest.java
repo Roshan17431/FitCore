@@ -36,7 +36,7 @@ class AccountSecurityTest {
     public static class Mail implements TransactionalEmailSender {
         final Map<String,String> messages=new java.util.concurrent.ConcurrentHashMap<>();
         public void send(String to,String subject,String text){if(to.startsWith("undeliverable-"))throw new IllegalStateException("test-only failure");messages.put(to,text);}
-        String token(String email){return messages.get(email).split("#token=")[1];}
+        String token(String email){return messages.get(email).split("#token=")[1].substring(0,43);}
     }
     @TestConfiguration static class MailConfig {@Bean @Primary Mail localTestMail(){return new Mail();}}
     @Autowired MockMvc mvc; @Autowired JdbcTemplate jdbc; @Autowired Mail mail;

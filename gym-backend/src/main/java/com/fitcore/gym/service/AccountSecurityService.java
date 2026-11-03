@@ -27,6 +27,7 @@ public class AccountSecurityService {
     private final OnboardingService onboarding; private final JwtService jwt;
     @Value("${fitcore.security-flows.demo-enabled:false}") private boolean enabled;
     @Value("${fitcore.security.public-origin:http://127.0.0.1:5175}") private String origin;
+    @Value("${fitcore.email.outbox.enabled:false}") private boolean queued;
     public AccountSecurityService(JdbcTemplate jdbc,PlatformTransactionManager transactions,PasswordEncoder encoder,
             TransactionalEmailSender mail,UserIdentityRepository identities,OnboardingService onboarding,JwtService jwt){
         this.jdbc=jdbc;this.tx=new TransactionTemplate(transactions);this.tx.setPropagationBehavior(3);
@@ -54,9 +55,12 @@ public class AccountSecurityService {
             if(jdbc.queryForObject("select count(*) from account_challenges where email=? and created_at>current_timestamp-interval '5 minutes'",Long.class,p.email())>=5)return;
             jdbc.update("delete from account_challenges where id in (select id from account_challenges where expires_at<current_timestamp limit 100)");
             var now=jdbc.queryForObject("select localtimestamp",LocalDateTime.class);
+            UUID challengeId=UUID.randomUUID();
             jdbc.update("insert into account_challenges(id,token_hash,purpose,email,user_id,gym_id,authz_version,full_name,password_hash,gym_name,slug,fitness_goal,invitation_hash,expires_at,created_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                UUID.randomUUID(),digest(token),p.purpose(),p.email(),p.user(),p.gym(),p.version(),p.name(),p.hash(),p.gymName(),p.slug(),p.goal(),p.invite(),now.plusMinutes(p.purpose().equals("RESET")?15:1440),now);
-            try {mail.send(p.email(),p.purpose().equals("RESET")?"Reset your FitCore password":"Verify your FitCore email",origin+(p.purpose().equals("RESET")?"/reset-password":"/verify-email")+"#token="+token);}
+                challengeId,digest(token),p.purpose(),p.email(),p.user(),p.gym(),p.version(),p.name(),p.hash(),p.gymName(),p.slug(),p.goal(),p.invite(),now.plusMinutes(p.purpose().equals("RESET")?15:1440),now);
+            String kind=p.purpose().equals("RESET")?"RESET":p.purpose().equals("OWNER")?"OWNER":"VERIFY";
+            var rendered=com.fitcore.gym.email.EmailTemplates.render(kind,p.gymName()==null?"your gym":p.gymName(),origin+(kind.equals("RESET")?"/reset-password":"/verify-email")+"#token="+token,kind.equals("RESET")?"15 minutes":"24 hours");
+            try {mail.enqueue(new com.fitcore.gym.email.EmailIntent(p.gym(),challengeId,null,kind,p.email(),rendered.subject(),rendered.text(),rendered.html(),now.plusMinutes(kind.equals("RESET")?15:1440)));}
             catch(RuntimeException failure){throw new DeliveryUnavailable();}
         });}catch(DeliveryUnavailable failure){/* Generic202; transaction rolled back and no unusable persisted plaintext. */}
     }
@@ -102,6 +106,10 @@ public class AccountSecurityService {
                 if(changed!=1)throw invalid();
             }
             jdbc.update("update account_challenges set consumed_at=current_timestamp,password_hash=null where email=? and consumed_at is null",normalized);
+            com.fitcore.gym.email.EmailOutbox.cancelEmail(jdbc,normalized);
+            if(queued){
+                if(newPassword!=null){var template=com.fitcore.gym.email.EmailTemplates.render("PASSWORD_CHANGED","your gym",null,null);mail.enqueue(new com.fitcore.gym.email.EmailIntent((UUID)c.get("gym_id"),null,null,"PASSWORD_CHANGED",normalized,template.subject(),template.text(),template.html(),jdbc.queryForObject("select localtimestamp",LocalDateTime.class).plusHours(24)));}
+            }
             return result;
         });
         // Sign only after the entire challenge/account transaction has committed.
