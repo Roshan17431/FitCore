@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 CHECKER = pathlib.Path(__file__).with_name('check_release_results.py')
-REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest']
+REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest', 'CleanInstanceHttpTest', 'CleanInstanceRecoveryTest', 'SchemaReadinessCertificationTest']
 
 class ReleaseResultsTest(unittest.TestCase):
     def run_check(self, changed=None, missing=None):
@@ -23,6 +23,12 @@ class ReleaseResultsTest(unittest.TestCase):
         self.assertNotEqual(self.run_check('tests="2" failures="0" errors="0" skipped="2"').returncode, 0)
     def test_absent_recovery_blocks(self):
         self.assertNotEqual(self.run_check(missing='TenantRecoveryTest').returncode, 0)
+    def test_absent_clean_instance_blocks(self):
+        self.assertNotEqual(self.run_check(missing='CleanInstanceHttpTest').returncode, 0)
+    def test_absent_clean_recovery_blocks(self):
+        self.assertNotEqual(self.run_check(missing='CleanInstanceRecoveryTest').returncode, 0)
+    def test_absent_schema_certification_blocks(self):
+        self.assertNotEqual(self.run_check(missing='SchemaReadinessCertificationTest').returncode, 0)
     def test_zero_test_security_suite_blocks(self):
         self.assertNotEqual(self.run_check('tests="0" failures="0" errors="0" skipped="0"').returncode, 0)
 
