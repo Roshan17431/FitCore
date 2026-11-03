@@ -5,11 +5,14 @@ import java.sql.*;
 /** Canonical PostgreSQL18 DDL contract; excludes data, owners, ACLs and Flyway bookkeeping. */
 public final class SchemaContract {
     private SchemaContract() {}
-    // PostgreSQL18 re-parses the V6 enum check's array casts when pg_restore recreates it.
-    // Accept exactly the two reviewed complete descriptors, not arbitrary semantic drift.
+    // PostgreSQL18 renders varchar-array casts differently after pg_restore.
+    // Exact certified staged-upgrade, clean V8 and full V8 restore contracts only;
+    // descriptor construction and every CHECK/index/function/trigger remain enforced.
     public static final java.util.Set<String> ACCEPTED = java.util.Set.of(
         "7f6e327b3b23cd7ae5521130c1e21383ef93683fa3caf35d2862f4b00d97206e",
-        "260256f9538c02f81352fd57fe541eaf95f53d8db171ecbd0fdac535fe27c2f7");
+        "260256f9538c02f81352fd57fe541eaf95f53d8db171ecbd0fdac535fe27c2f7",
+        "6953167a756786a1de56dd68acb7940e5ae02a710d803d5f18cc737f380f24ca",
+        "7f870102345b628218d6575c1c1dbe67408ad05b69e0d5c90a1d9d5ec6fefc1c");
     public static String fingerprint(Connection connection) throws SQLException {
         String sql = """
             select encode(sha256(convert_to(
