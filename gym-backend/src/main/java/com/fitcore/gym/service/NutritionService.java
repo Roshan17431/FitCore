@@ -84,7 +84,7 @@ public class NutritionService {
     }
 
     public List<NutritionPlanDto> getNutritionPlans() {
-        return nutritionPlanRepository.findAllByGymId(tenantAccess.gym()).stream()
+        return nutritionPlanRepository.findByGymIdAndArchivedFalse(tenantAccess.gym()).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }

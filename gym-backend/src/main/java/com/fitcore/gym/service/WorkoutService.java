@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WorkoutService {
     private final TenantAccess tenantAccess;
+    private final CatalogImagePolicy images;
 
     private final WorkoutLogRepository workoutLogRepository;
     private final WorkoutExerciseLogRepository workoutExerciseLogRepository;
@@ -40,13 +41,13 @@ public class WorkoutService {
     private final WorkoutPlanRepository workoutPlanRepository;
 
     public List<ExerciseDto> getAllExercises() {
-        return exerciseRepository.findAllByGymId(tenantAccess.gym()).stream()
+        return exerciseRepository.findByGymIdAndArchivedFalse(tenantAccess.gym()).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
 
     public List<WorkoutPlanDto> getWorkoutPlans() {
-        return workoutPlanRepository.findAllByGymId(tenantAccess.gym()).stream()
+        return workoutPlanRepository.findByGymIdAndStatus(tenantAccess.gym(), com.fitcore.gym.domain.WorkoutPlanStatus.PUBLISHED).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
     }
@@ -66,17 +67,20 @@ public class WorkoutService {
     public WorkoutLogDto logWorkout(UUID userId, WorkoutLogDto request) {
         User user = tenantAccess.requireUser(userId);
 
-        if (request.getExercises() != null)
-            for (var entry : request.getExercises()) {
-                if (entry == null
-                        || entry.getExercise() == null
-                        || entry.getExercise().getId() == null)
-                    throw new com.fitcore.gym.exception.BadRequestException(
-                            "Exercise reference is required");
-                exerciseRepository
-                        .findByIdAndGymId(entry.getExercise().getId(), tenantAccess.gym())
-                        .orElseThrow(() -> new ResourceNotFoundException("Exercise not found"));
-            }
+        // Lock the initial reads in a stable order and reuse them through insertion.
+        var lockedExercises = new java.util.HashMap<Long, Exercise>();
+        var ids = new java.util.TreeSet<Long>();
+        if (request.getExercises() != null) for (var entry : request.getExercises()) {
+            if (entry == null || entry.getExercise() == null || entry.getExercise().getId() == null)
+                throw new com.fitcore.gym.exception.BadRequestException("Exercise reference is required");
+            ids.add(entry.getExercise().getId());
+        }
+        for (Long id : ids) {
+            Exercise exercise = exerciseRepository.lockForLogging(id, tenantAccess.gym())
+                .orElseThrow(() -> new ResourceNotFoundException("Exercise not found"));
+            if (exercise.isArchived()) throw new com.fitcore.gym.exception.DuplicateResourceException("Exercise is archived; choose an active exercise");
+            lockedExercises.put(id, exercise);
+        }
         WorkoutLog workoutLog =
                 WorkoutLog.builder()
                         .gymId(user.getGymId())
@@ -90,11 +94,7 @@ public class WorkoutService {
 
         if (request.getExercises() != null && !request.getExercises().isEmpty()) {
             for (WorkoutExerciseLogDto exDto : request.getExercises()) {
-                Exercise exercise =
-                        exerciseRepository
-                                .findByIdAndGymId(exDto.getExercise().getId(), tenantAccess.gym())
-                                .orElseThrow(
-                                        () -> new ResourceNotFoundException("Exercise not found"));
+                Exercise exercise = lockedExercises.get(exDto.getExercise().getId());
 
                 WorkoutExerciseLog exLog =
                         WorkoutExerciseLog.builder()
@@ -124,6 +124,7 @@ public class WorkoutService {
                 .recommendedReps(exercise.getRecommendedReps())
                 .description(exercise.getDescription())
                 .imageUrl(exercise.getImageUrl())
+                .imageApproved(images.approved(exercise.getImageUrl()))
                 .build();
     }
 

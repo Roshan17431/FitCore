@@ -34,4 +34,6 @@ public class ExerciseDto {
     private String recommendedReps;
     private String description;
     private String imageUrl;
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.READ_ONLY)
+    private Boolean imageApproved;
 }
