@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(callSuper=true)
 public class Exercise extends TenantOwnedEntity {
 
+    @Column(nullable = false)
+    private boolean archived;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

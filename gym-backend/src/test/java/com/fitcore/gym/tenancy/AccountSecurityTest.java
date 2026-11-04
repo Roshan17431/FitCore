@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AccountSecurityTest {
     static final FoundationMigrationTest fixture=new FoundationMigrationTest();
     @DynamicPropertySource static void database(DynamicPropertyRegistry p) throws Exception {
-        fixture.isolatedSchema();fixture.migrate("7");
+        fixture.isolatedSchema();fixture.migrate("9");
         p.add("spring.datasource.url",()->System.getenv("FITCORE_POSTGRES_TEST_URL"));
         p.add("spring.datasource.username",()->System.getenv("FITCORE_POSTGRES_TEST_USERNAME"));
         p.add("spring.datasource.password",()->System.getenv("FITCORE_POSTGRES_TEST_PASSWORD"));

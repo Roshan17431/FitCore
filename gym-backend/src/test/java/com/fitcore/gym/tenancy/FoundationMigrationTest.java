@@ -179,7 +179,7 @@ class FoundationMigrationTest {
     }
     @Test void migratedSchemaSupportsDomainAssociationsAndCollections() throws Exception {
         twoGyms();
-        migrate("7");
+        migrate("9");
         var config=new org.hibernate.cfg.Configuration();
         for(String type:List.of("Gym","GymInvitation","User","ActiveMembership","Attendance","Exercise","FoodLog","MembershipPlan","Notification","NutritionGoal","NutritionPlan","ProgressMetric","TrainerProfile","TrainerSession","WorkoutExerciseLog","WorkoutLog","WorkoutPlan"))
             config.addAnnotatedClass(Class.forName("com.fitcore.gym.entity."+type));

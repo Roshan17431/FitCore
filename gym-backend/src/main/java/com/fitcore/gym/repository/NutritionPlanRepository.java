@@ -8,4 +8,7 @@ import org.springframework.data.jpa.repository.*;
 import java.time.*;
 import java.util.*;
 
-public interface NutritionPlanRepository extends TenantRepository<NutritionPlan, Long> {}
+public interface NutritionPlanRepository extends TenantRepository<NutritionPlan, Long> {
+    List<NutritionPlan> findByGymIdAndArchivedFalse(UUID gymId);
+    boolean existsByGymIdAndCategoryAndIdNot(UUID gymId, String category, Long id);
+}

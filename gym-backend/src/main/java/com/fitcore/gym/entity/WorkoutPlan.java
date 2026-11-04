@@ -28,6 +28,11 @@ import java.util.List;
 @EqualsAndHashCode(callSuper=true)
 public class WorkoutPlan extends TenantOwnedEntity {
 
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    @lombok.Builder.Default
+    private com.fitcore.gym.domain.WorkoutPlanStatus status = com.fitcore.gym.domain.WorkoutPlanStatus.PUBLISHED;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

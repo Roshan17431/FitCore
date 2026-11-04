@@ -28,6 +28,9 @@ import java.util.List;
 @EqualsAndHashCode(callSuper=true)
 public class NutritionPlan extends TenantOwnedEntity {
 
+    @Column(nullable = false)
+    private boolean archived;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

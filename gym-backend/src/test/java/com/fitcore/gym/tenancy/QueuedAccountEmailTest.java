@@ -22,7 +22,7 @@ import java.util.*;
 class QueuedAccountEmailTest {
  static FoundationMigrationTest fixture=new FoundationMigrationTest();
  @DynamicPropertySource static void database(DynamicPropertyRegistry p)throws Exception{
-  fixture.isolatedSchema();fixture.migrate("8");
+  fixture.isolatedSchema();fixture.migrate("9");
   p.add("spring.datasource.url",()->System.getenv("FITCORE_POSTGRES_TEST_URL"));p.add("spring.datasource.username",()->System.getenv("FITCORE_POSTGRES_TEST_USERNAME"));p.add("spring.datasource.password",()->System.getenv("FITCORE_POSTGRES_TEST_PASSWORD"));p.add("spring.datasource.driver-class-name",()->"org.postgresql.Driver");p.add("spring.datasource.hikari.schema",()->fixture.schema);p.add("spring.jpa.properties.hibernate.default_schema",()->fixture.schema);p.add("spring.jpa.properties.hibernate.dialect",()->"org.hibernate.dialect.PostgreSQLDialect");p.add("spring.jpa.hibernate.ddl-auto",()->"validate");p.add("spring.sql.init.mode",()->"never");
  }
  static class Fake implements EmailProvider {Map<UUID,OutboxCipher.Message> accepted=new java.util.concurrent.ConcurrentHashMap<>();public Acceptance accept(UUID id,OutboxCipher.Message m){accepted.putIfAbsent(id,m);return new Acceptance("accepted-only");}}

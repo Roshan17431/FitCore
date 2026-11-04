@@ -19,7 +19,7 @@ class EmailOutboxTest {
   public Acceptance accept(UUID id,OutboxCipher.Message message){calls.incrementAndGet();if(permanent)throw new Rejected();if(failures-->0)throw new IllegalStateException("secret-provider-payload");accepted.add(id);if(afterAccept!=null)afterAccept.run();if(crash){crash=false;throw new AssertionError("simulated process death");}return new Acceptance("receipt");}
  }
  @BeforeEach void setup()throws Exception {
-  fixture.isolatedSchema();fixture.migrate("8");
+  fixture.isolatedSchema();fixture.migrate("9");
   var ds=new DriverManagerDataSource(System.getenv("FITCORE_POSTGRES_TEST_URL")+"?currentSchema="+fixture.schema,System.getenv("FITCORE_POSTGRES_TEST_USERNAME"),System.getenv("FITCORE_POSTGRES_TEST_PASSWORD"));jdbc=new JdbcTemplate(ds);manager=new DataSourceTransactionManager(ds);tx=new TransactionTemplate(manager);
   cipher=new AesGcmOutboxCipher(Map.of("test",new byte[32]),"test");provider=new Fake();box=worker(provider);
  }
