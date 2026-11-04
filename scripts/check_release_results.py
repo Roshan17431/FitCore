@@ -5,7 +5,7 @@ import pathlib
 import sys
 import xml.etree.ElementTree as ET
 
-REQUIRED = {'FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest', 'CleanInstanceHttpTest', 'CleanInstanceRecoveryTest', 'SchemaReadinessCertificationTest'}
+REQUIRED = {'FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest', 'CleanInstanceHttpTest', 'CleanInstanceRecoveryTest', 'SchemaReadinessCertificationTest', 'CatalogManagementTest', 'CatalogMigrationTest', 'CatalogSchemaCertificationTest'}
 
 def check(folder):
     totals = dict(tests=0, failures=0, errors=0, skipped=0)

@@ -40,7 +40,7 @@ public class ReleaseReadiness {
         String requiredTables = "('email_outbox'),('account_challenges'),('security_rate_limits'),('gyms'),('gym_invitations'),('users'),('active_memberships'),('attendance'),('exercises'),('food_logs'),('membership_plans'),('membership_plan_features'),('notifications'),('nutrition_goals'),('nutrition_plans'),('nutrition_plan_meals'),('progress_metrics'),('trainer_profiles'),('trainer_sessions'),('trainer_available_slots'),('trainer_certifications'),('workout_logs'),('workout_exercise_logs'),('workout_plans'),('workout_plan_exercises'),('workout_plan_schedule')";
         if (!yes(c,"select bool_and(has_table_privilege(current_user,to_regclass(t),'SELECT') and has_table_privilege(current_user,to_regclass(t),'INSERT') and has_table_privilege(current_user,to_regclass(t),'UPDATE') and has_table_privilege(current_user,to_regclass(t),'DELETE')) and count(to_regclass(t))=26 from (values "+requiredTables+") required(t)")) return false;
         if (!yes(c,"select coalesce(bool_and(has_sequence_privilege(current_user,quote_ident(schemaname)||'.'||quote_ident(sequencename),'USAGE') and has_sequence_privilege(current_user,quote_ident(schemaname)||'.'||quote_ident(sequencename),'SELECT')),true) from pg_sequences where schemaname=current_schema()")) return false;
-        if (!yes(c,"select coalesce(string_agg(version,',' order by installed_rank),'')='1,2,4,5,6,7,8' and bool_and(success) from flyway_schema_history")) return false;
+        if (!yes(c,"select coalesce(string_agg(version,',' order by installed_rank),'')='1,2,4,5,6,7,8,9' and bool_and(success) from flyway_schema_history")) return false;
         return SchemaContract.ACCEPTED.contains(SchemaContract.fingerprint(c));
     }
 }

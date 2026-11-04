@@ -30,7 +30,7 @@ class CleanInstanceHttpTest {
     @DynamicPropertySource static void database(DynamicPropertyRegistry p)throws Exception {
         fixture.isolatedSchema();
         try(var c=fixture.connection();var s=c.createStatement();var r=s.executeQuery("select count(*) from information_schema.tables where table_schema=current_schema()")){r.next();assertThat(r.getInt(1)).isZero();}
-        fixture.migrate("8");
+        fixture.migrate("9");
         // App runs as a non-owner identity, not the fixture migrator.
         try(var c=fixture.connection();var s=c.createStatement()){
             s.execute("create role "+RUNTIME+" login password 'synthetic-runtime-only' nosuperuser nocreatedb nocreaterole nobypassrls noinherit");
@@ -79,11 +79,11 @@ class CleanInstanceHttpTest {
         Session joined=verify(address);assertThat(joined.gym()).isEqualTo(owner.gym());return joined;
     }
     @Test void cleanHistoryVerifiedOwnersInvitationsAndEmptyCatalogsStayIsolated()throws Exception {
-        assertThat(jdbc.queryForObject("select string_agg(version,',' order by installed_rank) from flyway_schema_history",String.class)).isEqualTo("1,2,4,5,6,7,8");
+        assertThat(jdbc.queryForObject("select string_agg(version,',' order by installed_rank) from flyway_schema_history",String.class)).isEqualTo("1,2,4,5,6,7,8,9");
         assertThat(jdbc.queryForObject("select count(*) from users",Long.class)).isZero();
         // Certify the independently reviewed clean descriptor with restricted credentials.
         try(var c=jdbc.getDataSource().getConnection()){
-            assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("6953167a756786a1de56dd68acb7940e5ae02a710d803d5f18cc737f380f24ca");
+            assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("257f2bf8e720e2ecb27c516ecbd216d4f16b77581abd9312b432821d2da42c7f");
             assertThat(com.fitcore.gym.operations.ReleaseReadiness.schemaReady(c)).as("Certified clean fingerprint must pass restricted runtime readiness").isTrue();
         }
         request(get("/api/health/ready"),null,200);
@@ -112,7 +112,7 @@ class CleanInstanceHttpTest {
         }
         assertThat(jdbc.queryForObject("select count(*) from gyms g join users u on u.id=g.primary_owner_user_id and u.gym_id=g.id where u.role='OWNER' and u.enabled and u.email_verified_at is not null",Long.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from membership_plans where name='Independent Premium'",Long.class)).isEqualTo(2);
-        fixture.migrate("8"); // no-op repeat must not seed a default gym or account.
+        fixture.migrate("9"); // no-op repeat must not seed a default gym or account.
         assertThat(jdbc.queryForObject("select count(*) from gyms",Long.class)).isEqualTo(2);
     }
 }

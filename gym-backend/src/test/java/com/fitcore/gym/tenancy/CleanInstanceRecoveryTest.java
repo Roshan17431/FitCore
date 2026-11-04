@@ -36,12 +36,12 @@ class CleanInstanceRecoveryTest {
     long count(TenantRecoveryTest db,String sql)throws Exception{try(var c=db.restoredConnection()){return db.count(c,sql);}}
     void history(TenantRecoveryTest db)throws Exception {
         try(var c=db.restoredConnection();var s=c.createStatement();var r=s.executeQuery("select string_agg(version,',' order by installed_rank),bool_and(success) from flyway_schema_history")){
-            r.next();assertThat(r.getString(1)).isEqualTo("1,2,4,5,6,7,8");assertThat(r.getBoolean(2)).isTrue();
+            r.next();assertThat(r.getString(1)).isEqualTo("1,2,4,5,6,7,8,9");assertThat(r.getBoolean(2)).isTrue();
         }
     }
     @Test void genuinelyEmptyDatabaseInitializesWithoutV3AndRerunsWithoutSeeds()throws Exception {
         assertThat(count(source,"select count(*) from information_schema.tables where table_schema not in ('pg_catalog','information_schema')")).isZero();
-        assertThat(migrations().migrate().migrationsExecuted).isEqualTo(7);history(source);
+        assertThat(migrations().migrate().migrationsExecuted).isEqualTo(8);history(source);
         assertThat(count(source,"select count(*) from users")).isZero();assertThat(count(source,"select count(*) from gyms")).isZero();
         assertThat(count(source,"select count(*) from membership_plans")).isZero();
         assertThat(migrations().migrate().migrationsExecuted).isZero();history(source);
@@ -97,7 +97,7 @@ class CleanInstanceRecoveryTest {
                 s.execute("revoke all on flyway_schema_history from clean_restore_runtime");s.execute("grant select on flyway_schema_history to clean_restore_runtime");
                 s.execute("grant usage,select on all sequences in schema "+source.fixture.schema+" to clean_restore_runtime");
                 s.execute("revoke all on function fitcore_scope_catalogs() from public");
-                s.execute("set role clean_restore_runtime");assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("7f870102345b628218d6575c1c1dbe67408ad05b69e0d5c90a1d9d5ec6fefc1c");
+                s.execute("set role clean_restore_runtime");assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("a37bfba3f80e1e41c445e62baeed36182e9bdb6d6b5e3852ee8888d69c5ea9c7");
                 assertThat(com.fitcore.gym.operations.ReleaseReadiness.schemaReady(c)).as("Certified full V8 restore must pass restricted runtime readiness").isTrue();
                 assertThatThrownBy(()->s.execute("select fitcore_scope_catalogs()" )).isInstanceOf(SQLException.class);
                 assertThatThrownBy(()->s.execute("update flyway_schema_history set checksum=0")).isInstanceOf(SQLException.class);

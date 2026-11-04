@@ -55,7 +55,7 @@ class SchemaReadinessCertificationTest {
     }
     static final java.util.regex.Pattern ARRAY_CAST=java.util.regex.Pattern.compile("\\(ARRAY\\[((?:'[A-Z_]+'::character varying)(?:, '[A-Z_]+'::character varying)*)\\]\\)::text\\[\\]");
     static final Set<String> ENUM_CHECKS=Set.of(
-        "constraint:gyms:gyms_status_check","constraint:users:users_role_check","constraint:gym_invitations:gym_invitations_role_check",
+        "constraint:workout_plans:workout_plans_status_check","constraint:gyms:gyms_status_check","constraint:users:users_role_check","constraint:gym_invitations:gym_invitations_role_check",
         "constraint:account_challenges:account_challenges_check","constraint:account_challenges:account_challenges_check1","constraint:account_challenges:account_challenges_purpose_check",
         "constraint:email_outbox:email_outbox_check1","constraint:email_outbox:email_outbox_kind_check","constraint:email_outbox:email_outbox_status_check");
     static String elementCasts(String values){return values.replaceAll("('[A-Z_]+'::character varying)","($1)::text");}
@@ -113,6 +113,10 @@ class SchemaReadinessCertificationTest {
         try(var c=runtime(db)){assertThat(ReleaseReadiness.schemaReady(c)).isTrue();}
         var drifts=List.of(
             "create table unexpected(id int)",
+            "alter table exercises alter column archived set default true",
+            "alter table nutrition_plans alter column archived drop default",
+            "alter table workout_plans alter column status set default 'ARCHIVED'",
+            "alter table workout_plans drop constraint workout_plans_status_check; alter table workout_plans add constraint workout_plans_status_check check(status in ('DRAFT','PUBLISHED','ARCHIVED','PUBLIC'))",
             "alter table users add column unexpected int",
             "alter table active_memberships drop constraint fk_active_memberships_plan_id_gym",
             "alter table users drop constraint users_role_check; alter table users add constraint users_role_check check(role in ('MEMBER','TRAINER','ADMIN','OWNER','PLATFORM'))",
@@ -124,6 +128,7 @@ class SchemaReadinessCertificationTest {
             "alter table users alter column gym_id drop not null",
             "update flyway_schema_history set version='99' where version='8'",
             "update flyway_schema_history set success=false where version='8'",
+            "delete from flyway_schema_history where version='9'",
             "grant create on schema "+db.fixture.schema+" to "+RUNTIME,
             "grant update on flyway_schema_history to "+RUNTIME,
             "grant execute on function fitcore_scope_catalogs() to "+RUNTIME,
@@ -142,6 +147,7 @@ class SchemaReadinessCertificationTest {
             "update gyms set status='UNKNOWN' where id='"+clean.source.fixture.gym(1)+"'",
             "update users set role='PLATFORM' where id='"+clean.source.fixture.user(3)+"'",
             "insert into gym_invitations(id,gym_id,email,token_hash,role,created_by_user_id,expires_at,created_at) values('30000000-0000-0000-0000-000000000001','"+clean.source.fixture.gym(1)+"','invalid@fixture.invalid','synthetic-invalid-hash','OWNER','"+clean.source.fixture.user(1)+"',now()+interval '1 day',now())",
+            "insert into workout_plans(level,duration,gym_id,status) values('Invalid status','30 min','"+clean.source.fixture.gym(1)+"','PUBLIC')",
             "update email_outbox set kind='OTHER'",
             "update email_outbox set status='UNKNOWN'",
             "update active_memberships set plan_id=2 where id=1")){
