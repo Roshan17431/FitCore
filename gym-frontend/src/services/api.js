@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { approvedExerciseImage } from '../utils/catalog';
 
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
@@ -85,14 +86,15 @@ const groupExercises = (exercises = []) => {
     groups[category].exercises.push({
       id: exercise.id,
       name: exercise.name,
-      image: exercise.imageUrl,
+      image: approvedExerciseImage(exercise),
+      imageApproved: exercise.imageApproved === true,
       description: exercise.description,
       sets: exercise.recommendedSets,
       reps: exercise.recommendedReps,
       difficulty: labelFromEnum(exercise.difficulty),
     });
     return groups;
-  }, {});
+  }, Object.create(null));
 
   return Object.values(grouped);
 };
@@ -399,4 +401,20 @@ export const gymService = {
   invitations: () => api.get('/gym/invitations').then(unwrap),
   invite: ({ email, role }) => api.post('/gym/invitations', { email, role }).then(unwrap),
   revoke: (id) => api.delete(`/gym/invitations/${encodeURIComponent(id)}`).then(unwrap),
+};
+
+const catalogResource = collection => {
+  const path = `/admin/catalog/${collection}`;
+  return {
+    list: () => api.get(path).then(unwrap),
+    get: id => api.get(`${path}/${encodeURIComponent(id)}`).then(unwrap),
+    create: payload => api.post(path, payload).then(unwrap),
+    update: (id, payload) => api.put(`${path}/${encodeURIComponent(id)}`, payload).then(unwrap),
+    archive: id => api.post(`${path}/${encodeURIComponent(id)}/archive`).then(unwrap),
+  };
+};
+export const catalogService = {
+  exercises: catalogResource('exercises'),
+  workouts: { ...catalogResource('workouts'), publish: id => api.post(`/admin/catalog/workouts/${encodeURIComponent(id)}/publish`).then(unwrap) },
+  nutrition: catalogResource('nutrition'),
 };

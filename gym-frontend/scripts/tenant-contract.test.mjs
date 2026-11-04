@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 const require=createRequire(import.meta.url);
-const source=(await readFile(new URL('../src/services/api.js',import.meta.url),'utf8')).replace("from 'axios'",`from '${pathToFileURL(require.resolve('axios')).href}'`).replaceAll('import.meta.env','({VITE_API_BASE_URL:"http://127.0.0.1:18081"})');
+const source=(await readFile(new URL('../src/services/api.js',import.meta.url),'utf8')).replace("from 'axios'",`from '${pathToFileURL(require.resolve('axios')).href}'`).replace("from '../utils/catalog'", `from '${new URL('../src/utils/catalog.js', import.meta.url).href}'`).replaceAll('import.meta.env','({VITE_API_BASE_URL:"http://127.0.0.1:18081"})');
 globalThis.localStorage={getItem:k=>k==='token'?'trusted-token':null,removeItem(){}};
 globalThis.sessionStorage={getItem:()=>null,removeItem(){}};
 globalThis.window={dispatchEvent(){},location:{href:''}};

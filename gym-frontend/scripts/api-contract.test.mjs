@@ -8,10 +8,10 @@ import test from 'node:test';
 const require = createRequire(import.meta.url);
 const source = (await readFile(new URL('../src/services/api.js', import.meta.url), 'utf8'))
   .replace("from 'axios'", `from '${pathToFileURL(require.resolve('axios')).href}'`)
-  .replaceAll('import.meta.env', '({ VITE_API_BASE_URL: "http://127.0.0.1:18081" })');
+  .replace("from '../utils/catalog'", `from '${new URL('../src/utils/catalog.js', import.meta.url).href}'`).replaceAll('import.meta.env', '({ VITE_API_BASE_URL: "http://127.0.0.1:18081" })');
 globalThis.localStorage = { getItem: () => null };
 globalThis.sessionStorage = { getItem: () => null };
-const { default: api, membershipService, trainerService } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { default: api, membershipService, trainerService, catalogService, workoutService } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 const plan = { id: 3, name: 'Premium', price: '120', durationMonths: 3, features: ['Classes'] };
 const membership = { id: 41, plan, startDate: '2030-01-01', endDate: '2030-04-01', status: 'ACTIVE', remainingDays: 29, serverDate: '2030-03-03', timeZone: 'UTC' };
 const respond = (data, status = 200) => {
@@ -94,4 +94,35 @@ test('booking serializes business fields without replaying session tenant or sec
   assert.equal(body.trainer.id,3);
   assert.equal(body.sessionDate,'2030-01-01');
   assert.ok(!captured.data.includes('gymId') && !captured.data.includes('authzVersion'));
+});
+
+
+test('catalog resource adapters use manager collection, item, archive and publish endpoints', async () => {
+  const captured = [];
+  api.defaults.adapter = async config => { captured.push({ method: config.method, url: config.url }); return { data: { id: 3 }, status: 200, headers: {}, config }; };
+  for (const kind of ['exercises', 'workouts', 'nutrition']) {
+    await catalogService[kind].list(); await catalogService[kind].get(3); await catalogService[kind].create({}); await catalogService[kind].update(3, {}); await catalogService[kind].archive(3);
+    assert.deepEqual(captured.splice(0), [{ method: 'get', url: `/admin/catalog/${kind}` }, { method: 'get', url: `/admin/catalog/${kind}/3` }, { method: 'post', url: `/admin/catalog/${kind}` }, { method: 'put', url: `/admin/catalog/${kind}/3` }, { method: 'post', url: `/admin/catalog/${kind}/3/archive` }]);
+  }
+  await catalogService.workouts.publish(3);
+  assert.deepEqual(captured, [{ method: 'post', url: '/admin/catalog/workouts/3/publish' }]);
+});
+
+test('library mapping keeps approved media and suppresses arbitrary legacy image URLs', async () => {
+  respond([{ id: 1, name: 'Legacy', category: 'Chest', imageUrl: 'https://unreviewed.invalid/legacy.jpg' }, { id: 2, name: 'Reviewed', category: 'Chest', imageUrl: '/images/reviewed.png', imageApproved: true }]);
+  const [group] = await workoutService.getLibrary();
+  assert.equal(group.exercises[0].image, ''); assert.equal(group.exercises[0].imageApproved, false);
+  assert.equal(group.exercises[1].image, '/images/reviewed.png'); assert.equal(group.exercises[1].imageApproved, true);
+});
+
+test('library categories treat object prototype names as ordinary gym-provided text', async () => {
+  const categories = ['constructor', 'toString', '__proto__', 'Strength'];
+  respond(categories.flatMap((category, index) => [
+    { id: index * 2 + 1, name: `${category} first`, category },
+    { id: index * 2 + 2, name: `${category} second`, category },
+  ]));
+  const groups = await workoutService.getLibrary();
+  assert.deepEqual(groups.map(group => group.category), categories);
+  for (const group of groups) assert.equal(group.exercises.length, 2);
+  assert.equal(Object.prototype.exercises, undefined);
 });
