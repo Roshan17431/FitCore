@@ -1,3 +1,4 @@
+import CatalogEmptyState from '../components/common/CatalogEmptyState';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { CreditCard, History, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
 import Badge from '../components/common/Badge';
@@ -117,6 +118,7 @@ const Membership = ({ section = 'plans' }) => {
       {upcomingMembership ? <p className="text-sm text-muted">An upcoming membership starts {formatMembershipDate(upcomingMembership.startDate)}. Another purchase or renewal is unavailable until that membership is current.</p> : null}
       {section === 'plans' && data.active ? <p className="text-sm text-muted">Upgrade to a higher total package price and retain your current expiry date, {formatMembershipDate(data.active.expiryDate)}. No payment is processed for these membership actions.</p> : null}
 
+      {section === 'plans' && !data.plans.length ? <CatalogEmptyState title="No membership plans available" membership /> : null}
       {section === 'plans' ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {data.plans.map((plan) => (

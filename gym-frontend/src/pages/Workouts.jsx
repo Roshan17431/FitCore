@@ -2,6 +2,7 @@ import { workoutKey } from '../utils/tenant-session';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Dumbbell, History, Library, ListChecks, Timer } from 'lucide-react';
+import CatalogEmptyState from '../components/common/CatalogEmptyState';
 import ExerciseMedia from '../components/common/ExerciseMedia';
 import Badge from '../components/common/Badge';
 import Button from '../components/common/Button';
@@ -139,6 +140,7 @@ const Workouts = ({ section = 'library' }) => {
 
       {section === 'library' ? (
         <div className="space-y-6">
+          {!data.library.length ? <CatalogEmptyState title="No exercises available" /> : !filteredLibrary.length ? <StateBlock title="No matching exercises" message="Try another name or category." /> : null}
           {filteredLibrary.map((group) => (
             <section className="space-y-3" key={group.category}>
               <div className="flex items-center justify-between">
@@ -148,7 +150,7 @@ const Workouts = ({ section = 'library' }) => {
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {group.exercises.map((exercise) => (
                   <Card className="overflow-hidden p-0" key={exercise.id}>
-                    <ExerciseMedia name={exercise.name} />
+                    <ExerciseMedia name={exercise.name} image={exercise.image} imageApproved={exercise.imageApproved} />
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="text-base font-bold text-ink">{exercise.name}</h3>
@@ -191,7 +193,7 @@ const Workouts = ({ section = 'library' }) => {
                 <p className="text-sm font-bold uppercase text-muted">Weekly Schedule</p>
                 <ul className="mt-3 space-y-2 text-sm text-muted">
                   {plan.schedule.map((item) => (
-                    <li className="rounded-lg bg-surface-alt px-3 py-2" key={item}>
+                    <li className="rounded-lg bg-surface-alt px-3 py-2 [overflow-wrap:anywhere]" key={item}>
                       {item}
                     </li>
                   ))}
@@ -201,7 +203,7 @@ const Workouts = ({ section = 'library' }) => {
                 <p className="text-sm font-bold uppercase text-muted">Exercises</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {plan.exercises.map((exercise) => (
-                    <Badge key={exercise} tone="sky">{exercise}</Badge>
+                    <Badge key={exercise} tone="sky" className="max-w-full whitespace-normal [overflow-wrap:anywhere]">{exercise}</Badge>
                   ))}
                 </div>
               </div>
@@ -214,7 +216,7 @@ const Workouts = ({ section = 'library' }) => {
         </div>
       ) : null}
 
-      {section === 'plans' && !data.plans.length ? <StateBlock title="No workout plans available" message="Workout plans will appear here when they are added to the library." /> : null}
+      {section === 'plans' && !data.plans.length ? <CatalogEmptyState title="No workout plans available" /> : null}
 
       {section === 'tracker' ? (
         <div className="grid gap-4 xl:grid-cols-[0.75fr_1.25fr]">
@@ -269,7 +271,7 @@ const Workouts = ({ section = 'library' }) => {
                   {exercise.complete ? 'Mark Pending' : 'Mark Complete'}
                 </Button>
               </Card>
-            )) : <StateBlock title="No exercises available" message="Workout exercises will appear here after they are added in the backend." />}
+            )) : <CatalogEmptyState title="No exercises available" />}
             <div className="flex justify-end">
               <Button disabled={!tracker.some((exercise) => exercise.complete)} isLoading={saving} onClick={saveTracker}>
                 Save Workout

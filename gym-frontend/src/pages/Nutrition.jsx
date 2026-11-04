@@ -1,3 +1,4 @@
+import CatalogEmptyState from '../components/common/CatalogEmptyState';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Apple, Beef, Flame, Plus, Salad, Search, Target } from 'lucide-react';
 import Badge from '../components/common/Badge';
@@ -123,8 +124,9 @@ const Nutrition = ({ section = 'dashboard' }) => {
         </div>
       ) : null}
 
-      {section === 'diet-plans' && !data.dietPlans.length ? <StateBlock title="No diet plans available" message="Diet plans will appear here when they are added to the library." /> : null}
+      {section === 'diet-plans' && !data.dietPlans.length ? <CatalogEmptyState title="No diet plans available" /> : null}
 
+      {section === 'diet-plans' && data.dietPlans.length ? <p className="text-sm text-muted">All nutrition figures are gym-provided estimates.</p> : null}
       {section === 'diet-plans' ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {data.dietPlans.map((plan) => (
@@ -132,7 +134,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold text-ink">{plan.category}</h2>
-                  <p className="mt-1 text-sm text-muted">{plan.calories} kcal daily target</p>
+                  <p className="mt-1 text-sm text-muted">{plan.calories} kcal · gym-provided estimate</p>
                 </div>
                 <Badge tone="emerald">{plan.protein}g protein</Badge>
               </div>
@@ -152,7 +154,7 @@ const Nutrition = ({ section = 'dashboard' }) => {
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 {plan.meals.map((meal) => (
-                  <Badge key={meal} tone="sky">{meal}</Badge>
+                  <Badge key={meal} tone="sky" className="max-w-full whitespace-normal [overflow-wrap:anywhere]">{meal}</Badge>
                 ))}
               </div>
             </Card>

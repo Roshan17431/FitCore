@@ -27,6 +27,7 @@ const adminNavigation = [{ path: '/admin/dashboard', label: 'Admin', icon: Shiel
 const routeTitles = [
   { match: '/owner', title: 'Owner Dashboard' },
   { match: '/gym/settings', title: 'Gym Settings' },
+  { match: '/gym/catalogs', title: 'Gym Catalogs' },
   { match: '/gym/invitations', title: 'Invitations' },
   { match: '/membership', title: 'Membership Management' },
   { match: '/workouts', title: 'Workout Management' },
@@ -68,7 +69,7 @@ const MainLayout = () => {
   }, [location.pathname]);
 
   const personal = user?.role === 'OWNER' ? navigation.map(item => item.path === '/dashboard' ? { ...item, path: '/owner', label: 'Owner Dashboard' } : item) : navigation;
-  const visibleNavigation = canManage(user) ? [...personal, ...adminNavigation, { path: '/admin/users', label: 'Members', icon: UsersRound }, { path: '/admin/trainers', label: 'Manage trainers', icon: UsersRound }, { path: '/gym/invitations', label: 'Invitations', icon: UsersRound }, ...(user.role === 'OWNER' ? [{ path: '/gym/settings', label: 'Gym Settings', icon: ShieldCheck }] : [])] : personal;
+  const visibleNavigation = canManage(user) ? [...personal, ...adminNavigation, { path: '/gym/catalogs', label: 'Catalogs', icon: Dumbbell }, { path: '/admin/users', label: 'Members', icon: UsersRound }, { path: '/admin/trainers', label: 'Manage trainers', icon: UsersRound }, { path: '/gym/invitations', label: 'Invitations', icon: UsersRound }, ...(user.role === 'OWNER' ? [{ path: '/gym/settings', label: 'Gym Settings', icon: ShieldCheck }] : [])] : personal;
   const firstName = user?.fullName?.split(' ')[0] || 'Member';
   const searchItems = visibleNavigation;
   const searchResults = query.trim()

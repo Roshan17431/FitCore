@@ -282,6 +282,10 @@ if [[ "$onboarding_demo" == true ]]; then
     cd -- "$frontend_dir"
     "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/owner-integrated.pw.js"
   ) >"$artifact_dir/owner-integrated.log" 2>&1 || { tail -n 15 "$artifact_dir/owner-integrated.log" >&2; exit 1; }
+  (
+    cd -- "$frontend_dir"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/catalog-integrated.pw.js"
+  ) >"$artifact_dir/catalog-integrated.log" 2>&1 || { tail -n 15 "$artifact_dir/catalog-integrated.log" >&2; exit 1; }
 else
   (
     cd -- "$frontend_dir"

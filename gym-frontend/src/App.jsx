@@ -11,6 +11,7 @@ const Signup = lazy(() => import('./pages/Signup'));
 const SecurityFlow = lazy(() => import('./pages/SecurityFlow'));
 const CreateGym = lazy(() => import('./pages/CreateGym'));
 const GymWorkspace = lazy(() => import('./pages/GymWorkspace'));
+const Catalogs = lazy(() => import('./pages/Catalogs'));
 const Invitations = lazy(() => import('./pages/Invitations'));
 const TenantLayout = () => { const { user } = useContext(AuthContext); return <MainLayout key={`${user.gymId}:${user.id}:${user.authzVersion}`} />; };
 const InvitationLifecycle = () => { const location = useLocation(); const { clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity } = useContext(AuthContext); useEffect(() => { if (!['/register', '/secure/register'].includes(location.pathname)) clearInvitation(); else captureIncomingInvitation(); if (!['/verify-email', '/reset-password'].includes(location.pathname)) clearSecurity(); else captureIncomingSecurity(); }, [location.pathname, location.hash, clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity]); return null; };
@@ -91,6 +92,7 @@ const App = () => (
 
             <Route element={<OwnerRoute />}><Route path="/owner" element={<GymWorkspace />} /><Route path="/gym/settings" element={<GymWorkspace settings />} /></Route>
             <Route element={<AdminRoute />}>
+              <Route path="/gym/catalogs" element={<Catalogs />} />
               <Route path="/gym/invitations" element={<Invitations />} />
               <Route path="/admin" element={<Navigate replace to="/admin/dashboard" />} />
               <Route path="/admin/dashboard" element={<Admin section="dashboard" />} />
