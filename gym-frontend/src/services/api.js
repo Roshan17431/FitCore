@@ -1,13 +1,14 @@
 import axios from 'axios';
 import { approvedExerciseImage } from '../utils/catalog';
+import { cookieMode, cookieApiRequest, browserLogin, browserLogout, browserMe } from './browser-session.js';
 
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
   return trimmedUrl.endsWith('/api') ? trimmedUrl.slice(0, -4) : trimmedUrl;
 };
 const backendBaseURL = normalizeBackendBaseURL(import.meta.env.VITE_API_BASE_URL);
-const apiBaseURL = backendBaseURL ? `${backendBaseURL}/api` : '';
-const apiConfigError = backendBaseURL
+const apiBaseURL = cookieMode ? '/api' : backendBaseURL ? `${backendBaseURL}/api` : '';
+const apiConfigError = cookieMode || backendBaseURL
   ? ''
   : 'Missing VITE_API_BASE_URL. Set it to the backend origin, for example: https://fitcore-posv.onrender.com';
 
@@ -38,6 +39,7 @@ export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: 60000,
+  ...(cookieMode ? { adapter: cookieApiRequest } : {}),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -46,6 +48,7 @@ const api = axios.create({
 const publicAuth = new Set(['/auth/login', '/auth/register', '/auth/register-owner', '/auth/forgot-password', '/auth/registration/owner', '/auth/registration/invitation', '/auth/verification/request', '/auth/verify-email', '/auth/reset-password']);
 const currentToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 api.interceptors.request.use(config => {
+  if (cookieMode) return config;
   if (apiConfigError) return Promise.reject(new Error(apiConfigError));
   if (!publicAuth.has(config.url)) {
     config.fitcoreToken = currentToken();
@@ -54,9 +57,11 @@ api.interceptors.request.use(config => {
   return config;
 });
 api.interceptors.response.use(response => {
+  if (cookieMode) return response;
   if (response.config.fitcoreToken && response.config.fitcoreToken !== currentToken()) return Promise.reject(new axios.CanceledError('Session changed'));
   return response;
 }, error => {
+  if (cookieMode) return Promise.reject(error);
   const config = error.config || {};
   const unavailable = error.response?.status === 403 && error.response?.data?.message === 'GYM_UNAVAILABLE';
   if (config.fitcoreToken && config.fitcoreToken === currentToken() && (error.response?.status === 401 || unavailable)) {
@@ -230,11 +235,12 @@ export const authService = {
   requestVerification: email => api.post('/auth/verification/request', { email }).then(unwrap),
   verifyEmail: ({ email, token }) => api.post('/auth/verify-email', { email, token }).then(unwrap),
   completeReset: ({ email, token, password }) => api.post('/auth/reset-password', { email, token, password }).then(unwrap),
-  login: (email, password) => api.post('/auth/login', { email, password }).then(unwrap),
+  login: (email, password) => cookieMode ? browserLogin(email, password) : api.post('/auth/login', { email, password }).then(unwrap),
+  logout: () => cookieMode ? browserLogout() : Promise.resolve(),
   register: ({ fullName, email, password, fitnessGoal, invitationToken }) =>
     api.post('/auth/register', { fullName, email, password, fitnessGoal, invitationToken }).then(unwrap),
   registerOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/register-owner', { fullName, email, password, gymName, slug }).then(unwrap),
-  me: () => api.get('/auth/me').then(unwrap),
+  me: () => cookieMode ? browserMe() : api.get('/auth/me').then(unwrap),
   resetPassword: (email) => api.post('/auth/forgot-password', { email }).then(unwrap),
 };
 

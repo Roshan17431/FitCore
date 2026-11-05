@@ -13,7 +13,7 @@ const CreateGym = lazy(() => import('./pages/CreateGym'));
 const GymWorkspace = lazy(() => import('./pages/GymWorkspace'));
 const Catalogs = lazy(() => import('./pages/Catalogs'));
 const Invitations = lazy(() => import('./pages/Invitations'));
-const TenantLayout = () => { const { user } = useContext(AuthContext); return <MainLayout key={`${user.gymId}:${user.id}:${user.authzVersion}`} />; };
+const TenantLayout = () => { const { user, sessionRevision = 0 } = useContext(AuthContext); return <MainLayout key={`${user.gymId}:${user.id}:${user.authzVersion}:${sessionRevision}`} />; };
 const InvitationLifecycle = () => { const location = useLocation(); const { clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity } = useContext(AuthContext); useEffect(() => { if (!['/register', '/secure/register'].includes(location.pathname)) clearInvitation(); else captureIncomingInvitation(); if (!['/verify-email', '/reset-password'].includes(location.pathname)) clearSecurity(); else captureIncomingSecurity(); }, [location.pathname, location.hash, clearInvitation, captureIncomingInvitation, clearSecurity, captureIncomingSecurity]); return null; };
 const DashboardHome = () => { const { user } = useContext(AuthContext); return user.role === 'OWNER' ? <Navigate replace to='/owner' /> : <Dashboard />; };
 

@@ -9,7 +9,7 @@ import AuthLayout from '../layouts/AuthLayout';
 import { dashboardPath } from '../utils/tenant-session';
 
 const Login = () => {
-  const { login, sessionError } = useContext(AuthContext);
+  const { login, sessionError, cookieTransport } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '', rememberMe: true });
@@ -82,7 +82,7 @@ const Login = () => {
             />
 
             <div className="flex items-center justify-between gap-3 text-sm">
-              <label className="flex items-center gap-2 font-medium text-muted">
+              {!cookieTransport ? <label className="flex items-center gap-2 font-medium text-muted">
                 <input
                   checked={form.rememberMe}
                   className="h-4 w-4 rounded border-line text-emerald-500 focus:ring-emerald-400"
@@ -91,7 +91,7 @@ const Login = () => {
                   type="checkbox"
                 />
                 Remember me
-              </label>
+              </label> : <span className="text-muted">Secure browser session</span>}
               <Link className="font-semibold text-brand" to="/forgot-password">
                 Forgot password
               </Link>

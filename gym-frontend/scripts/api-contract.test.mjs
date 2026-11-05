@@ -8,7 +8,7 @@ import test from 'node:test';
 const require = createRequire(import.meta.url);
 const source = (await readFile(new URL('../src/services/api.js', import.meta.url), 'utf8'))
   .replace("from 'axios'", `from '${pathToFileURL(require.resolve('axios')).href}'`)
-  .replace("from '../utils/catalog'", `from '${new URL('../src/utils/catalog.js', import.meta.url).href}'`).replaceAll('import.meta.env', '({ VITE_API_BASE_URL: "http://127.0.0.1:18081" })');
+  .replace("from '../utils/catalog'", `from '${new URL('../src/utils/catalog.js', import.meta.url).href}'`).replace("from './browser-session.js'", `from '${new URL('../src/services/browser-session.js', import.meta.url).href}'`).replaceAll('import.meta.env', '({ VITE_API_BASE_URL: "http://127.0.0.1:18081" })');
 globalThis.localStorage = { getItem: () => null };
 globalThis.sessionStorage = { getItem: () => null };
 const { default: api, membershipService, trainerService, catalogService, workoutService } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);

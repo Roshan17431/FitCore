@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cookieMode, subscribeCookieLifecycle, subscribeSessionChange } from '../services/browser-session.js';
 import { captureSecurityToken } from '../utils/security-token';
 import { AuthContext } from './auth-context';
 import { authService, formatApiError } from '../services/api';
@@ -6,7 +7,7 @@ import { captureInvitation, readSessionToken, clearTrainingState, clearForeignTr
 
 const storedToken = readSessionToken;
 const clearSession = () => { for (const storage of [localStorage, sessionStorage]) { storage.removeItem('token'); storage.removeItem('user'); } clearTrainingState(); };
-export const AuthProvider = ({ children, initialInvitation = null, initialSecurity = null }) => {
+const BearerAuthProvider = ({ children, initialInvitation = null, initialSecurity = null }) => {
   const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [sessionError, setSessionError] = useState('');
   const [invitationToken, setInvitationToken] = useState(initialInvitation);
   const [securityToken, setSecurityToken] = useState(initialSecurity);
@@ -71,3 +72,83 @@ export const AuthProvider = ({ children, initialInvitation = null, initialSecuri
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+// Cookie identity stays in React memory and always comes from a fresh authoritative me.
+const CookieAuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [sessionError, setSessionError] = useState('');
+  const [sessionRevision, setSessionRevision] = useState(0);
+  const generation = useRef(0), localWriters = useRef(0), displayedUser = useRef(null);
+  displayedUser.current = user;
+  const invalidate = useCallback(() => {
+    setUser(null); try { clearSession(); } catch { /* The adapter reports unavailable persistent storage. */ } setSessionRevision(value => value + 1);
+  }, []);
+  const restore = useCallback(async () => {
+    const version = ++generation.current;
+    invalidate(); setLoading(true);
+    try {
+      const current = await authService.me();
+      if (version !== generation.current) return;
+      if (current) clearForeignTrainingState(current);
+      setUser(current); setSessionError('');
+    } catch (error) {
+      if (version === generation.current) setSessionError(formatApiError(error, 'Unable to confirm this session.'));
+    } finally { if (version === generation.current) setLoading(false); }
+  }, [invalidate]);
+  useEffect(() => {
+    const unsubscribe = subscribeSessionChange(event => {
+      // Local transitions belong to this provider's pending login/logout. External
+      // changes invalidate that request's generation as well as all tenant caches.
+      if (event.external || event.state === 'ENDED') generation.current++;
+      if (event.state !== 'IDLE') {
+        invalidate();
+        if (event.external || event.state === 'ENDED') setLoading(false);
+        if (event.state === 'UNCERTAIN') setSessionError('Cookie delivery is uncertain. This browser session is blocked; contact the local test operator.');
+        if (event.state === 'ENDED') setSessionError('Your session changed or is unavailable. Sign in again.');
+      } else if (event.external) { void restore(); }
+    });
+    const unsubscribeLifecycle = subscribeCookieLifecycle({
+      windowTarget: window, documentTarget: document,
+      // Only revalidate an accepted view. Login forms need no foreground bootstrap.
+      canRestore: () => localWriters.current === 0 && displayedUser.current !== null,
+      restore,
+    });
+    void restore();
+    const currentGeneration = generation;
+    return () => { currentGeneration.current++; unsubscribeLifecycle(); unsubscribe(); };
+  }, [invalidate, restore]);
+  const logout = useCallback(async () => {
+    localWriters.current++;
+    const version = ++generation.current;
+    invalidate(); setLoading(false); setSessionError('');
+    try { await authService.logout(); }
+    catch (error) { if (version === generation.current) setSessionError(formatApiError(error)); }
+    finally { localWriters.current--; }
+  }, [invalidate]);
+  const login = async (email, password) => {
+    localWriters.current++;
+    const version = ++generation.current;
+    invalidate(); setSessionError('');
+    try {
+      const current = await authService.login(email, password);
+      if (version !== generation.current) return {success:false,error:'Session changed. Sign in again.'};
+      clearForeignTrainingState(current); setUser(current); setLoading(false);
+      return {success:true,user:current};
+    } catch (error) {
+      if (version === generation.current) { invalidate(); setLoading(false); setSessionError(formatApiError(error)); }
+      return {success:false,error:formatApiError(error)};
+    } finally { localWriters.current--; }
+  };
+  const unavailable = async () => ({success:false,error:'Registration, verification and recovery are unavailable in this cookie test environment.'});
+  const value = {
+    user, loading, sessionError, sessionRevision, cookieTransport:true,
+    invitationToken:null, securityToken:null,
+    clearInvitation:() => {}, captureIncomingInvitation:() => {}, clearSecurity:() => {}, captureIncomingSecurity:() => {},
+    login, logout, refresh:restore, register:unavailable, registerOwner:unavailable, resetPassword:unavailable,
+    // Receipts never authenticate or write browser cookies. These endpoints are
+    // disabled in this spike; no token-bearing legacy path is reachable here.
+    verifyEmail:async (email, token) => { try { await authService.verifyEmail({email,token}); return {success:true,verified:true}; } catch (error) { return {success:false,error:formatApiError(error)}; } },
+    completeReset:input => authService.completeReset(input),
+  };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+export const AuthProvider = props => cookieMode ? <CookieAuthProvider {...props} /> : <BearerAuthProvider {...props} />;

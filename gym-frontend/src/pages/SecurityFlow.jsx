@@ -43,7 +43,7 @@ export default function SecurityFlow({ reset = false }) {
   return <AuthLayout><Card className="w-full"><h1 className="text-3xl font-semibold">{reset ? 'Reset password' : 'Verify email'}</h1>
     <p className="my-4 text-sm text-muted">Use the exact account email. Links expire and work once. External email sending remains disabled.</p>
     {error ? <p role="alert" className="mb-4 text-sm">{error}</p> : null}{message ? <p role="status" className="mb-4 text-sm text-brand">{message}</p> : null}
-    {reset && !token ? <p className="my-4 text-sm">Open a valid recovery link or <Link className="text-brand" to="/forgot-password">request another</Link>.</p> : <form className="space-y-4" onSubmit={submit}>
+    {auth.cookieTransport ? <p role="status" className="my-4 text-sm">Verification and recovery are unavailable in this cookie test environment.</p> : reset && !token ? <p className="my-4 text-sm">Open a valid recovery link or <Link className="text-brand" to="/forgot-password">request another</Link>.</p> : <form className="space-y-4" onSubmit={submit}>
       <FormField label="Account email" required type="email" maxLength={254} autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} />
       {reset ? <><FormField label="New password" type="password" required autoComplete="new-password" minLength={12} maxLength={64} value={password} onChange={e => setPassword(e.target.value)} /><FormField label="Confirm password" type="password" required autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} /></> : null}
       <Button type="submit" isLoading={busy}>{reset ? 'Change password' : token ? 'Verify email' : 'Request verification'}</Button>

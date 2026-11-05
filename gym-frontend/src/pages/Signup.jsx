@@ -13,7 +13,7 @@ export default function Signup({ owner = false, secure = false }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '', gymName: '', slug: '' });
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false);
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }));
-  const unavailable = !owner && !auth.invitationToken;
+  const unavailable = auth.cookieTransport || (!owner && !auth.invitationToken);
   const submit = async event => {
     event.preventDefault(); if (lock.current || unavailable) return;
     const validation = validateSignup(form, owner); setError(validation); if (validation) return;
@@ -34,7 +34,7 @@ export default function Signup({ owner = false, secure = false }) {
     <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{owner ? 'Create your gym' : 'Join your gym'}</h1>
     <p className="mb-6 mt-3 text-sm leading-6 text-muted">{owner ? 'Bring your team and members together in one FitCore workspace.' : 'Use the exact email address invited by your gym. Your role and gym are assigned securely by the invitation.'}</p>
     <p className="mb-6 rounded-xl border border-line bg-surface-alt p-3 text-xs leading-5 text-muted">{secure ? 'Email verification is required. External delivery remains disabled; this flow requires an approved local test sender.' : 'Registration is available only in approved local demos. Demo accounts are unverified. External email delivery is disabled.'}</p>
-    {unavailable ? <div role="status" className="space-y-4"><p>Open a valid invitation link to join a gym. Public member registration is unavailable.</p><Link className="font-semibold text-brand" to="/create-gym">Create a gym workspace</Link></div> : <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+    {unavailable ? <div role="status" className="space-y-4"><p>{auth.cookieTransport ? 'Registration is unavailable in this cookie test environment.' : 'Open a valid invitation link to join a gym. Public member registration is unavailable.'}</p><Link className="font-semibold text-brand" to="/create-gym">Create a gym workspace</Link></div> : <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       {error ? <p role="alert" className="rounded-xl border border-line bg-surface-alt p-3 text-sm sm:col-span-2">{error}</p> : null}
       {success ? <p role="status">{secure ? 'If this request is eligible and delivery is configured, check the invited inbox for verification. No account is created until verification succeeds.' : 'Account created. Opening your workspace…'}</p> : null}
       <FormField className="sm:col-span-2" required minLength={3} maxLength={100} autoComplete="name" label="Full name" name="fullName" value={form.fullName} onChange={update} />
