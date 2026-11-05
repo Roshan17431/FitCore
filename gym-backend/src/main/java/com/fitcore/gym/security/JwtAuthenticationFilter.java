@@ -25,6 +25,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final CustomUserDetailsService identities;
     private final com.fitcore.gym.repository.GymRepository gyms;
 
+    @org.springframework.beans.factory.annotation.Value("${fitcore.browser.spike-enabled:false}")
+    private boolean browserSpike;
+
     static boolean publicRequest(HttpServletRequest r) {
         String p = r.getServletPath();
         return "OPTIONS".equals(r.getMethod())
@@ -55,7 +58,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest r) {
-        return publicRequest(r) && !hasSelector(r);
+        return browserSpike || (publicRequest(r) && !hasSelector(r));
     }
 
     @Override

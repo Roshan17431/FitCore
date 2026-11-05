@@ -51,6 +51,7 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name="fitcore.browser.spike-enabled", havingValue="false", matchIfMissing=true)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
