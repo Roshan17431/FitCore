@@ -1,4 +1,28 @@
-# FitCore production readiness — Phase 7
+# FitCore SaaS release readiness
+
+## Current decision — Phase 9D, 4 November2026
+
+**Option A selected: a new independent SaaS with an empty PostgreSQL database. Production release and persistent/hosted startup remain BLOCKED.** Current-source baseline:45782b8050580036c0c9423acce90befe089ce7a. The [Phase9D assessment](phase9d-independent-saas-assessment-2026-11-04.md) and its browser/startup, email/abuse, infrastructure, recovery and milestone documents are proposals for approval. No transport, source, test, migration or hosting change is made in this architecture phase.
+
+| Requirement | Current status | Evidence / next gate |
+| --- | --- | --- |
+| V9 catalog/domain/tenant/business regressions | PASS for previously verified candidate |1063 backend,46frontend,53distinct browser groups,11gate cases, lint/build; source preserved. No new Phase9D application test run claimed. |
+| Fresh/staged/restoredV9 schema and constrained roles | PASS for synthetic fixtures | Five exact contracts across seven989-record paths. Real target identity/checksums/complete effective privileges remain separate. |
+| Hosted verification on published45782b8 | PASS, observed4November2026 | [Run41760618383](https://github.com/Roshan17431/FitCore/actions/runs/41760618383) and its release-gate step completed successfully. Hosted log counts/artifact provenance not extracted. |
+| Enforced GitHub required checks/reviews | BLOCKED — current repository evidence shows missing protection | Public master metadata:protected=false; repository rulesets:[]. Full policy/bypass/environment/secret review and authorized changes still required. |
+| Legacy customer inventory/mapping/operationalV3/old-production cutover | NOT REQUIRED for strict Option A | No old data import or shared credentials/resources. Option B remains separately BLOCKED, not silently completed. |
+| Browser authentication and universal verified-account policy | BLOCKED for approval/implementation | Recommend same-origin BFF/HttpOnly/CSRF; current bearer storage/local logout and enabled unverified trainer path remain. No transport change yet. |
+| Persistent startup authorization | BLOCKED | Current disposable-only guard retained. Proposed signed target/artifact/config/epoch/workload permit and complete runtime checks not implemented. |
+| New resource/TLS/network/roles/secrets | BLOCKED | No resources created. Render internal PG TLS does not establish verify-full; approved authenticated topology and actual certification required. |
+| Shared limiter/proxy/login/invitation/provider quotas | PASS for current synthetic limiter; BLOCKED for production boundary | PostgreSQL shared/fail-closed behavior exists; trusted gateway identity, login and issuer/gym/outbound budgets/capacity remain. |
+| Email encryption/outbox/challenge security | PASS for current local implementation | Real provider remains disabled; no scheduler, provider deadline/receipt/webhook/suppression implementation or live operation approval. |
+| Provider/worker/public verified activation | BLOCKED | Conditional Resend only; privacy/domain/keys/quotas, bounded horizon/recovery and separately authorized real sending/onboarding required. |
+| Actual new-instance encrypted backup/key/ACL/epoch restoration and RPO/RTO | BLOCKED | Synthetic recovery is not operational certification; proposed targets require acceptance and a separately authorized new-target drill. |
+| Deployment, routing, monitored launch and rollback | BLOCKED | Independent approvals and exact artifacts/targets required; current startup/deploy holds unchanged; old FitCore untouched. |
+
+The sections below are historical Phase6/7 evidence and later companion entries. This current table supersedes their old V8/catalog limitations, “workflow unpublished” claim and legacy-mapping requirement **for Option A only**; historical counts and unperformed operational claims are not rewritten as current evidence.
+
+## Historical Phase 7 readiness record
 
 Date: 2026-11-01 (Asia/Kolkata). Baseline: `cf407f0e1f9cd0c8a46054066713c2318b77dd53`, isolated `codex/multi-tenant-saas` checkout. **Overall production release: BLOCKED.** This is local preparation and verification, not release approval.
 
@@ -27,7 +51,7 @@ Date: 2026-11-01 (Asia/Kolkata). Baseline: `cf407f0e1f9cd0c8a46054066713c2318b77
 | Browser bearer storage and CSRF/transport decision | BLOCKED | Existing local/session bearer transport preserved; XSS exposure and cookie/BFF decision remain |
 | Secrets, TLS, production logging/retention/alerts | BLOCKED | App exception payload logs hardened; real secret/proxy/CORS/driver-log and monitoring evidence absent |
 | Local automated candidate checks and CI definition | PASS for local fixtures | Read-only SHA-pinned GitHub workflow, fail-closed critical-test gate, no deploy step |
-| Remote GitHub CI run and enforced required checks | BLOCKED | Workflow is uncommitted/unpublished; remote Linux execution and branch protection are not claimed |
+| Remote GitHub CI run and enforced required checks | Historical BLOCKED; see current Phase9D table | Workflow was later published;45782b8 hosted verification succeeded. Required protection remains blocked and is not established by that run. |
 | Production startup / release authorization | BLOCKED | Startup prohibition unchanged; no production deployment or automatic deployment configured |
 | S3 ownership integration | BLOCKED / disabled | Foundation rejects S3 activation; no unowned asset access |
 
@@ -122,3 +146,13 @@ Original SQL migrations are unchanged. Phase6 required no frontend source/busine
 [Phase9C implementation and verification report](phase9c-gym-catalog-management-2026-11-04.md) adds gym-derived OWNER/ADMIN catalog management for exercises, workouts and nutrition; safe archival, history/name protections, draft/publication, role-aware empty actions and responsive management UI. V9 adds only archival/publication lifecycle fields and the status CHECK; V1–V8, membership/booking services and the startup prohibition remain unchanged. The current schema contract includes defaults and requiresV9, with independently certified fresh/staged/restored shapes. Existing accounts/catalogs are not assigned or seeded.
 
 The final `./scripts/verify-release.sh` exited0: **1063 backend,46 frontend,53 distinct browser groups (65 executed),11 release-gate checks**, lint/build, restricted-runtime readiness, migration/recovery and tenant-security regressions passed. Nine catalog screenshots were inspected. All work remains local and uncommitted. Production and persistent/hosted demonstration remain **BLOCKED**. Catalog implementation does not authorize a persistent target, public production onboarding, real mail, legacy V3 mapping, hosting changes or deployment. Phase9D can prepare the outstanding security/infrastructure decisions; their exact operator approvals and real backup/restore/hosted-CI evidence remain required.
+
+## Phase9D-1 — local browser-session spike
+
+The owner separately approved a **local-only** BFF/Secure HttpOnly cookie/server-session spike. See [implementation, exact fingerprints, evidence, limitations and decisions](phase9d1-secure-browser-auth-spike-2026-11-04.md). This limited approval does not approve persistent startup, hosted configuration, public onboarding or email sending. FoundationSafetyConfiguration remains unchanged; all databases are genuine owned disposable PostgreSQL18.
+
+**Local Phase9D-1 PASS, finalized5 November2026.** `./scripts/verify-release.sh` exited0 after all scoped/final review fixes:1,117 backend executions,83 Node tests,84 distinct browser checks (96 executions:65 legacy +31 HTTPS cookie),6 shared-backend TLS checks and14 release-gate unit methods; lint and both builds pass. Required fresh/staged/restored V10 schema and restricted-runtime negative cases pass. New critical backend suites, Node coordination/BFF results and structured lifecycle/browser/shared-instance results are mandatory gates. The complete report records exact fingerprints, files, evidence and count distinctions. V1–V9 and the hard startup guard are unchanged; the original demo remains running. Native Chromium focus and actual back UI are verified; native BFCache and visibility-to-visible, other engines and all cookie-mode business forms are not universally certified.
+
+Production remains **BLOCKED**: usable failed-login/expiry/uncertainty recovery, the approved browser matrix, external recovery epochs/account holds, clean-instance target/startup/DB-TLS certification, real backup/restore, rate-limit/proxy/key/worker operations, provider and public-onboarding approvals, remote CI/branch/security approval and release/rollback authorization are still required. The spike must not be exposed to persistent production traffic.
+
+Source publication was subsequently authorized separately: see the [Phase9D-1 publication scope and safeguards](phase9d1-source-publication-2026-11-05.md). That instruction does not approve deployment, persistent startup or removal of any production block.
