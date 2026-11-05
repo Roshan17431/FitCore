@@ -107,7 +107,7 @@ public class JwtService {
                         credentialsVersion(userDetails).getBytes(StandardCharsets.UTF_8));
     }
 
-    private String credentialsVersion(UserDetails userDetails) {
+    public String credentialsVersion(UserDetails userDetails) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
