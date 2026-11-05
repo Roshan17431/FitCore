@@ -18,7 +18,7 @@ import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
 
-/** No seeds, legacy input or direct account inserts: real verified onboarding on empty V8. */
+/** No seeds, legacy input or direct account inserts: real verified onboarding on empty V10. */
 @EnabledIfEnvironmentVariable(named="FITCORE_TENANCY_TEST_TOKEN",matches="[a-f0-9]{64}")
 @SpringBootTest(properties={"fitcore.security-flows.demo-enabled=true","fitcore.email.outbox.enabled=true","fitcore.email.outbox.worker-enabled=true","fitcore.email.outbox.active-key=synthetic","fitcore.email.outbox.keys=synthetic=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="})
 @AutoConfigureMockMvc(print=MockMvcPrint.NONE)
@@ -30,7 +30,7 @@ class CleanInstanceHttpTest {
     @DynamicPropertySource static void database(DynamicPropertyRegistry p)throws Exception {
         fixture.isolatedSchema();
         try(var c=fixture.connection();var s=c.createStatement();var r=s.executeQuery("select count(*) from information_schema.tables where table_schema=current_schema()")){r.next();assertThat(r.getInt(1)).isZero();}
-        fixture.migrate("9");
+        fixture.migrate("latest");
         // App runs as a non-owner identity, not the fixture migrator.
         try(var c=fixture.connection();var s=c.createStatement()){
             s.execute("create role "+RUNTIME+" login password 'synthetic-runtime-only' nosuperuser nocreatedb nocreaterole nobypassrls noinherit");
@@ -79,11 +79,11 @@ class CleanInstanceHttpTest {
         Session joined=verify(address);assertThat(joined.gym()).isEqualTo(owner.gym());return joined;
     }
     @Test void cleanHistoryVerifiedOwnersInvitationsAndEmptyCatalogsStayIsolated()throws Exception {
-        assertThat(jdbc.queryForObject("select string_agg(version,',' order by installed_rank) from flyway_schema_history",String.class)).isEqualTo("1,2,4,5,6,7,8,9");
+        assertThat(jdbc.queryForObject("select string_agg(version,',' order by installed_rank) from flyway_schema_history",String.class)).isEqualTo("1,2,4,5,6,7,8,9,10");
         assertThat(jdbc.queryForObject("select count(*) from users",Long.class)).isZero();
         // Certify the independently reviewed clean descriptor with restricted credentials.
         try(var c=jdbc.getDataSource().getConnection()){
-            assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("257f2bf8e720e2ecb27c516ecbd216d4f16b77581abd9312b432821d2da42c7f");
+            assertThat(com.fitcore.gym.operations.SchemaContract.fingerprint(c)).isEqualTo("a21ab3b9248dcb45a7e85957bb2987b6a53b521db8233fa4a6fd3b413bc8c681");
             assertThat(com.fitcore.gym.operations.ReleaseReadiness.schemaReady(c)).as("Certified clean fingerprint must pass restricted runtime readiness").isTrue();
         }
         request(get("/api/health/ready"),null,200);
@@ -112,7 +112,7 @@ class CleanInstanceHttpTest {
         }
         assertThat(jdbc.queryForObject("select count(*) from gyms g join users u on u.id=g.primary_owner_user_id and u.gym_id=g.id where u.role='OWNER' and u.enabled and u.email_verified_at is not null",Long.class)).isEqualTo(2);
         assertThat(jdbc.queryForObject("select count(*) from membership_plans where name='Independent Premium'",Long.class)).isEqualTo(2);
-        fixture.migrate("9"); // no-op repeat must not seed a default gym or account.
+        fixture.migrate("latest"); // no-op repeat must not seed a default gym or account.
         assertThat(jdbc.queryForObject("select count(*) from gyms",Long.class)).isEqualTo(2);
     }
 }

@@ -2,17 +2,18 @@ package com.fitcore.gym.operations;
 
 import java.sql.*;
 
-/** Canonical PostgreSQL18 V9 DDL/default contract; excludes data, owners, ACLs and Flyway bookkeeping. */
+/** Canonical PostgreSQL18 V10 DDL/default contract; excludes data, owners, ACLs and Flyway bookkeeping. */
 public final class SchemaContract {
     private SchemaContract() {}
-    // V9 contracts certify columns INCLUDING defaults and every constraint/index/trigger/function.
+    // V10 contracts certify columns INCLUDING defaults and every constraint/index/trigger/function.
     // Exact fresh, staged archive upgrade and full archive restore parser representations only.
     public static final java.util.Set<String> ACCEPTED = java.util.Set.of(
-        "257f2bf8e720e2ecb27c516ecbd216d4f16b77581abd9312b432821d2da42c7f",
-        "a37bfba3f80e1e41c445e62baeed36182e9bdb6d6b5e3852ee8888d69c5ea9c7",
-        "b64ef5d178b784b4697de334a688a57af484a3b5c2108deb9b1571b0e1f5c4ad",
-        "6b752e4590ff80986b2ee38be642a7e17e67949aa095c893e9c081348b9de8f5",
-        "95097ba59ee4c182505e1946fdecab880092ae30a196e30a1dc29a941644e487");
+        "a21ab3b9248dcb45a7e85957bb2987b6a53b521db8233fa4a6fd3b413bc8c681",
+        "c14f022fb8ed56bec51719b37b7c2c5e3ea8d194282463638e84d3d42e1af37b",
+        "cd7a0c70c55f7ea4f49b5e311f321a229e4b43756b412fa84a2b2c0ffc473fd9",
+        "83b2451155f889ce68955f4bba17fa5bf9476ae1435e2ec0814da80c4912f76d",
+        "083367038ace44ff0908fc59212102943e2aabad68ffe4d46c94c070dd944710",
+        "185cbd2dcb0f21ce7d1626a4947078afc9eb4c898a55f064bf0ac2dde0bbc528");
     public static String fingerprint(Connection connection) throws SQLException {
         String sql = """
             select encode(sha256(convert_to(

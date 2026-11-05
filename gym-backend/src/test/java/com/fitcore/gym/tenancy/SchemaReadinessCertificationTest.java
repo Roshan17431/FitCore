@@ -55,6 +55,7 @@ class SchemaReadinessCertificationTest {
     }
     static final java.util.regex.Pattern ARRAY_CAST=java.util.regex.Pattern.compile("\\(ARRAY\\[((?:'[A-Z_]+'::character varying)(?:, '[A-Z_]+'::character varying)*)\\]\\)::text\\[\\]");
     static final Set<String> ENUM_CHECKS=Set.of(
+        "constraint:browser_session_families:browser_family_pending_check","constraint:browser_sessions:browser_sessions_kind_check",
         "constraint:workout_plans:workout_plans_status_check","constraint:gyms:gyms_status_check","constraint:users:users_role_check","constraint:gym_invitations:gym_invitations_role_check",
         "constraint:account_challenges:account_challenges_check","constraint:account_challenges:account_challenges_check1","constraint:account_challenges:account_challenges_purpose_check",
         "constraint:email_outbox:email_outbox_check1","constraint:email_outbox:email_outbox_kind_check","constraint:email_outbox:email_outbox_status_check");
@@ -100,7 +101,7 @@ class SchemaReadinessCertificationTest {
             try(var statement=c.createStatement()){
                 try(var result=statement.executeQuery("select not (rolsuper or rolcreatedb or rolcreaterole or rolbypassrls or rolinherit) from pg_roles where rolname=current_user")){result.next();assertThat(result.getBoolean(1)).isTrue();}
                 try(var result=statement.executeQuery("select count(*) from pg_class t join pg_namespace n on n.oid=t.relnamespace where n.nspname=current_schema() and pg_has_role(current_user,t.relowner,'MEMBER')")){result.next();assertThat(result.getInt(1)).isZero();}
-                try(var result=statement.executeQuery("select count(*),bool_and(has_table_privilege(current_user,table_schema||'.'||table_name,'SELECT') and has_table_privilege(current_user,table_schema||'.'||table_name,'INSERT') and has_table_privilege(current_user,table_schema||'.'||table_name,'UPDATE') and has_table_privilege(current_user,table_schema||'.'||table_name,'DELETE') and not has_table_privilege(current_user,table_schema||'.'||table_name,'TRUNCATE,REFERENCES,TRIGGER')) from information_schema.tables where table_schema=current_schema() and table_name<>'flyway_schema_history'")){result.next();assertThat(result.getInt(1)).isEqualTo(26);assertThat(result.getBoolean(2)).isTrue();}
+                try(var result=statement.executeQuery("select count(*),bool_and(has_table_privilege(current_user,table_schema||'.'||table_name,'SELECT') and has_table_privilege(current_user,table_schema||'.'||table_name,'INSERT') and has_table_privilege(current_user,table_schema||'.'||table_name,'UPDATE') and has_table_privilege(current_user,table_schema||'.'||table_name,'DELETE') and not has_table_privilege(current_user,table_schema||'.'||table_name,'TRUNCATE,REFERENCES,TRIGGER')) from information_schema.tables where table_schema=current_schema() and table_name<>'flyway_schema_history'")){result.next();assertThat(result.getInt(1)).isEqualTo(29);assertThat(result.getBoolean(2)).isTrue();}
                 try(var result=statement.executeQuery("select not has_schema_privilege(current_user,current_schema(),'CREATE') and not has_function_privilege(current_user,'fitcore_scope_catalogs()','EXECUTE') and has_table_privilege(current_user,'flyway_schema_history','SELECT') and not has_table_privilege(current_user,'flyway_schema_history','INSERT,UPDATE,DELETE,TRUNCATE')")){result.next();assertThat(result.getBoolean(1)).isTrue();}
                 try(var result=statement.executeQuery("select bool_and(has_sequence_privilege(current_user,schemaname||'.'||sequencename,'USAGE') and has_sequence_privilege(current_user,schemaname||'.'||sequencename,'SELECT') and not has_sequence_privilege(current_user,schemaname||'.'||sequencename,'UPDATE')) from pg_sequences where schemaname=current_schema()")){result.next();assertThat(result.getBoolean(1)).isTrue();}
             }
@@ -113,6 +114,11 @@ class SchemaReadinessCertificationTest {
         try(var c=runtime(db)){assertThat(ReleaseReadiness.schemaReady(c)).isTrue();}
         var drifts=List.of(
             "create table unexpected(id int)",
+            "alter table browser_sessions disable trigger immutable_gym",
+            "alter table browser_sessions drop constraint browser_session_user_gym_fk",
+            "alter table browser_session_families drop constraint browser_family_pending_check",
+            "alter table browser_sessions alter column used set default true",
+            "delete from flyway_schema_history where version='10'",
             "alter table exercises alter column archived set default true",
             "alter table nutrition_plans alter column archived drop default",
             "alter table workout_plans alter column status set default 'ARCHIVED'",

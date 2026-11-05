@@ -12,7 +12,7 @@ class CatalogMigrationTest {
     @AfterEach void cleanup()throws Exception{fixture.cleanup();}
     @Test void emptyCatalogInitializationRequiresVersionedArchiveAndPublicationFields()throws Exception{
         fixture.migrate("latest");
-        assertThat(fixture.value("select max(version) from flyway_schema_history where version is not null")).isEqualTo("9");
+        assertThat(fixture.value("select version from flyway_schema_history order by installed_rank desc limit 1")).isEqualTo("10");
         assertThat(fixture.number("select count(*) from information_schema.columns where table_schema=current_schema() and (table_name,column_name) in (('exercises','archived'),('workout_plans','status'),('nutrition_plans','archived')) and is_nullable='NO' and column_default is not null")).isEqualTo(3);
         assertThat(fixture.number("select count(*) from gyms")).isZero();assertThat(fixture.number("select count(*) from users")).isZero();
     }

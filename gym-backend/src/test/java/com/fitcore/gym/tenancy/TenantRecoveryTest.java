@@ -126,7 +126,7 @@ class TenantRecoveryTest {
             assertThat(com.fitcore.gym.operations.ReleaseReadiness.schemaReady(c)).as("Missing business privileges must not report READY").isFalse();
         }
         try(var c=restoredConnection();var statement=c.createStatement()){
-            for(String table:List.of("email_outbox","account_challenges","security_rate_limits","gyms","gym_invitations","users","active_memberships","attendance","exercises","food_logs","membership_plans","membership_plan_features","notifications","nutrition_goals","nutrition_plans","nutrition_plan_meals","progress_metrics","trainer_profiles","trainer_sessions","trainer_available_slots","trainer_certifications","workout_logs","workout_exercise_logs","workout_plans","workout_plan_exercises","workout_plan_schedule"))
+            for(String table:List.of("browser_session_families","browser_sessions","browser_gateway_nonces","email_outbox","account_challenges","security_rate_limits","gyms","gym_invitations","users","active_memberships","attendance","exercises","food_logs","membership_plans","membership_plan_features","notifications","nutrition_goals","nutrition_plans","nutrition_plan_meals","progress_metrics","trainer_profiles","trainer_sessions","trainer_available_slots","trainer_certifications","workout_logs","workout_exercise_logs","workout_plans","workout_plan_exercises","workout_plan_schedule"))
                 statement.execute("grant select,insert,update,delete on "+fixture.schema+"."+table+" to recovery_runtime");
             statement.execute("grant usage,select on all sequences in schema "+fixture.schema+" to recovery_runtime");
         }
