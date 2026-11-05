@@ -12,13 +12,19 @@ backend_pid=""
 vite_pid=""
 browser_started=false
 runtime_dir=""
+backend_port="${FITCORE_VERIFY_BACKEND_PORT:-18082}"
+frontend_port="${FITCORE_VERIFY_FRONTEND_PORT:-5175}"
+for value in "$backend_port" "$frontend_port"; do
+  [[ "$value" =~ ^[1-9][0-9]{3,4}$ ]] && (( value >= 1024 && value <= 65535 )) || { echo 'Invalid loopback verification port.' >&2; exit 64; }
+done
+[[ "$backend_port" != "$frontend_port" ]] || { echo 'Verification ports must differ.' >&2; exit 64; }
 onboarding_demo="${FITCORE_VERIFY_OWNER_UI:-false}"
 [[ "$onboarding_demo" == true || "$onboarding_demo" == false ]] || exit 64
 
 for executable in docker java node curl lsof mktemp; do
   command -v "$executable" >/dev/null 2>&1 || { echo "Missing required executable: $executable" >&2; exit 1; }
 done
-for port in 18082 5175; do
+for port in "$backend_port" "$frontend_port"; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     echo "Refusing to run: loopback application port $port is already occupied. No resources were started." >&2
     exit 64
@@ -72,7 +78,7 @@ cleanup() {
       cleanup_failed=true
     fi
   done
-  for port in 18082 5175; do
+  for port in "$backend_port" "$frontend_port"; do
     if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
       echo "Port $port remains occupied; no unknown process was killed." >>"$artifact_dir/cleanup.log"
       cleanup_failed=true
@@ -130,7 +136,7 @@ SQL
 (
   cd -- "$runtime_dir"
   exec env -i PATH="$PATH" FITCORE_TENANCY_TEST_TOKEN="$container_id" "$java_bin" -jar "$jar_path" \
-    --server.address=127.0.0.1 --server.port=18082 \
+    --server.address=127.0.0.1 --server.port="$backend_port" \
     --spring.config.import= --spring.profiles.active=phase2-local-e2e \
     --spring.datasource.url="jdbc:postgresql://127.0.0.1:${postgres_port}/fitcore_phase2_e2e" \
     --spring.datasource.username=fitcore_phase2_e2e \
@@ -138,17 +144,17 @@ SQL
     --spring.flyway.enabled=true --spring.jpa.hibernate.ddl-auto=validate --spring.jpa.show-sql=false \
     --spring.sql.init.mode=never --aws.s3.enabled=false --fitcore.onboarding.demo-enabled="$onboarding_demo" \
     --jwt.secret=fitcore-phase2-public-local-e2e-signing-key-for-disposable-verification-only-2026 \
-    --jwt.expiration-ms=3600000 --cors.allowed-origins=http://127.0.0.1:5175
+    --jwt.expiration-ms=3600000 --cors.allowed-origins=http://127.0.0.1:${frontend_port}
 ) >"$artifact_dir/backend.log" 2>&1 &
 backend_pid=$!
 ready=false
 for ((attempt = 0; attempt < 90; attempt++)); do
   kill -0 "$backend_pid" 2>/dev/null || { echo 'Owned backend exited during startup; inspect backend.log.' >&2; exit 1; }
-  if curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:18082/api/health >"$artifact_dir/backend-health.json"; then ready=true; break; fi
+  if curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:${backend_port}/api/health >"$artifact_dir/backend-health.json"; then ready=true; break; fi
   sleep 1
 done
 [[ "$ready" == true ]] || { echo 'Owned backend health did not become ready.' >&2; exit 1; }
-[[ "$(lsof -nP -a -p "$backend_pid" -iTCP:18082 -sTCP:LISTEN -Fn | sed -n '/^n/p')" == 'n127.0.0.1:18082' ]] || { echo 'Owned backend is not listening exclusively on loopback.' >&2; exit 1; }
+[[ "$(lsof -nP -a -p "$backend_pid" -iTCP:"$backend_port" -sTCP:LISTEN -Fn | sed -n '/^n/p')" == "n127.0.0.1:$backend_port" ]] || { echo 'Owned backend is not listening exclusively on loopback.' >&2; exit 1; }
 
 # Reuse only the documented PUBLIC demo BCrypt fixture, never local credentials or an env file.
 public_fixture_hash="$("$node_bin" - "$repo_dir/gym-backend/src/main/resources/db/demo-data.sql" <<'NODE'
@@ -211,19 +217,27 @@ docker exec -i "$container_id" psql --username fitcore_phase2_e2e --dbname fitco
 
 # Keep the real project config/aliases, but disable Vite env-file loading and force loopback.
 "$node_bin" - "$frontend_dir/vite.config.js" "$runtime_dir/vite.phase2.config.mjs" \
-  "$frontend_dir/scripts/phase2-integrated.pw.js" "$runtime_dir/phase2-integrated.pw.js" "$artifact_dir" <<'NODE'
+  "$frontend_dir/scripts/phase2-integrated.pw.js" "$runtime_dir/phase2-integrated.pw.js" "$artifact_dir" "$backend_port" "$frontend_port" "$frontend_dir/scripts" "$runtime_dir" <<'NODE'
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
-const [, , original, configPath, sourcePath, runnerPath, artifacts] = process.argv;
-fs.writeFileSync(configPath, `import base from ${JSON.stringify(pathToFileURL(original).href)};\nexport default { ...base, envDir: false, server: { ...base.server, host: '127.0.0.1', port: 5175, strictPort: true } };\n`);
+const [, , original, configPath, sourcePath, runnerPath, artifacts, backendPort, frontendPort, scripts, runtime] = process.argv;
+fs.writeFileSync(configPath, `import base from ${JSON.stringify(pathToFileURL(original).href)};\nexport default { ...base, envDir: false, server: { ...base.server, host: '127.0.0.1', port: ${Number(frontendPort)}, strictPort: true } };\n`);
 const source = fs.readFileSync(sourcePath, 'utf8');
 const portable = source.replace(/const output = '[^']+';/, `const output = ${JSON.stringify(artifacts)};`);
 if (source === portable) throw new Error('Integrated runner artifact directory substitution failed');
-fs.writeFileSync(runnerPath, portable);
+function origins(value) {
+  return value.replaceAll('http://127.0.0.1:18082', `http://127.0.0.1:${backendPort}`)
+    .replaceAll('http://127.0.0.1:5175', `http://127.0.0.1:${frontendPort}`)
+    .replaceAll("['5175', '18082']", JSON.stringify([frontendPort, backendPort]));
+}
+fs.writeFileSync(runnerPath, origins(portable));
+for (const name of fs.readdirSync(scripts).filter(name => name.endsWith('.pw.js') && name !== 'phase2-integrated.pw.js')) {
+  fs.writeFileSync(`${runtime}/${name}`, origins(fs.readFileSync(`${scripts}/${name}`, 'utf8')));
+}
 NODE
 (
   cd -- "$frontend_dir"
-  exec env -i PATH="$PATH" VITE_API_BASE_URL=http://127.0.0.1:18082/api \
+  exec env -i PATH="$PATH" VITE_API_BASE_URL=http://127.0.0.1:${backend_port}/api \
     "$node_bin" "$frontend_dir/node_modules/vite/bin/vite.js" --config "$runtime_dir/vite.phase2.config.mjs"
 ) >"$artifact_dir/vite.log" 2>&1 &
 vite_pid=$!
@@ -231,17 +245,17 @@ ready=false
 for ((attempt = 0; attempt < 60; attempt++)); do
   kill -0 "$backend_pid" 2>/dev/null || { echo 'Owned backend stopped unexpectedly.' >&2; exit 1; }
   kill -0 "$vite_pid" 2>/dev/null || { echo 'Owned Vite exited during startup; inspect vite.log.' >&2; exit 1; }
-  if curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:5175/login >/dev/null; then ready=true; break; fi
+  if curl --noproxy '*' --fail --silent --max-time 2 http://127.0.0.1:${frontend_port}/login >/dev/null; then ready=true; break; fi
   sleep 1
 done
 [[ "$ready" == true ]] || { echo 'Owned Vite did not become ready.' >&2; exit 1; }
-[[ "$(lsof -nP -a -p "$vite_pid" -iTCP:5175 -sTCP:LISTEN -Fn | sed -n '/^n/p')" == 'n127.0.0.1:5175' ]] || { echo 'Owned Vite is not listening exclusively on loopback.' >&2; exit 1; }
+[[ "$(lsof -nP -a -p "$vite_pid" -iTCP:"$frontend_port" -sTCP:LISTEN -Fn | sed -n '/^n/p')" == "n127.0.0.1:$frontend_port" ]] || { echo 'Owned Vite is not listening exclusively on loopback.' >&2; exit 1; }
 
 echo "Running real local browser checks with PostgreSQL 18 on disposable loopback port $postgres_port."
 browser_started=true
 (
   cd -- "$frontend_dir"
-  "${playwright_command[@]}" -s="$browser_session" open http://127.0.0.1:5175/login
+  "${playwright_command[@]}" -s="$browser_session" open http://127.0.0.1:${frontend_port}/login
 ) >"$artifact_dir/browser.log" 2>&1
 if ! (
   cd -- "$frontend_dir"
@@ -262,7 +276,7 @@ INSERT INTO users (id, gym_id, full_name, email, password_hash, role, enabled, c
 SQL
   if ! (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/phase3-integrated.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/phase3-integrated.pw.js"
   ) >"$artifact_dir/phase3-integrated.log" 2>&1; then
     echo 'Phase 3 integrated UI verification failed; inspect phase3-integrated.log.' >&2
     tail -n 15 "$artifact_dir/phase3-integrated.log" >&2
@@ -270,7 +284,7 @@ SQL
   fi
   if ! (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/tenant-isolation-integrated.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/tenant-isolation-integrated.pw.js"
   ) >"$artifact_dir/tenant-isolation-integrated.log" 2>&1; then
     echo 'Tenant browser isolation verification failed; inspect tenant-isolation-integrated.log.' >&2
     tail -n 15 "$artifact_dir/tenant-isolation-integrated.log" >&2
@@ -280,22 +294,22 @@ fi
 if [[ "$onboarding_demo" == true ]]; then
   (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/owner-integrated.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/owner-integrated.pw.js"
   ) >"$artifact_dir/owner-integrated.log" 2>&1 || { tail -n 15 "$artifact_dir/owner-integrated.log" >&2; exit 1; }
   (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/catalog-integrated.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/catalog-integrated.pw.js"
   ) >"$artifact_dir/catalog-integrated.log" 2>&1 || { tail -n 15 "$artifact_dir/catalog-integrated.log" >&2; exit 1; }
 else
   (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/onboarding-disabled.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/onboarding-disabled.pw.js"
   ) >"$artifact_dir/onboarding-disabled.log" 2>&1 || { tail -n 15 "$artifact_dir/onboarding-disabled.log" >&2; exit 1; }
 fi
 if [[ "${FITCORE_VERIFY_SECURITY_UI:-false}" == true ]]; then
   (
     cd -- "$frontend_dir"
-    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$frontend_dir/scripts/security-integrated.pw.js"
+    "${playwright_command[@]}" -s="$browser_session" run-code --filename="$runtime_dir/security-integrated.pw.js"
   ) >"$artifact_dir/security-integrated.log" 2>&1 || { tail -n 12 "$artifact_dir/security-integrated.log" >&2; exit 1; }
 fi
 kill -0 "$backend_pid" && kill -0 "$vite_pid"

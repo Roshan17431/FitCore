@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 CHECKER = pathlib.Path(__file__).with_name('check_release_results.py')
-REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest', 'CleanInstanceHttpTest', 'CleanInstanceRecoveryTest', 'SchemaReadinessCertificationTest', 'CatalogManagementTest', 'CatalogMigrationTest', 'CatalogSchemaCertificationTest']
+REQUIRED = ['FoundationMigrationTest', 'TenantRecoveryTest', 'TenantIsolationTest', 'TenantSessionTest', 'SecurityRegressionTest', 'AccountSecurityTest', 'SharedAbuseOutageTest', 'EmailOutboxTest', 'QueuedAccountEmailTest', 'OutboxCipherTest', 'EmailTemplatesTest', 'OutboxSafetyTest', 'CleanInstanceHttpTest', 'CleanInstanceRecoveryTest', 'SchemaReadinessCertificationTest', 'CatalogManagementTest', 'CatalogMigrationTest', 'CatalogSchemaCertificationTest', 'BrowserSessionMigrationTest', 'BrowserAdmissionTest', 'BrowserSessionSecurityTest', 'BrowserGatewaySecurityTest']
 
 class ReleaseResultsTest(unittest.TestCase):
     def run_check(self, changed=None, missing=None):
@@ -35,6 +35,10 @@ class ReleaseResultsTest(unittest.TestCase):
         self.assertNotEqual(self.run_check(missing='CatalogMigrationTest').returncode, 0)
     def test_absent_catalog_certification_blocks(self):
         self.assertNotEqual(self.run_check(missing='CatalogSchemaCertificationTest').returncode, 0)
+    def test_absent_browser_security_blocks(self):
+        for name in ['BrowserSessionMigrationTest','BrowserAdmissionTest','BrowserSessionSecurityTest','BrowserGatewaySecurityTest']:
+            with self.subTest(suite=name):
+                self.assertNotEqual(self.run_check(missing=name).returncode,0)
     def test_zero_test_security_suite_blocks(self):
         self.assertNotEqual(self.run_check('tests="0" failures="0" errors="0" skipped="0"').returncode, 0)
 

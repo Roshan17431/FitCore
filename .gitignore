@@ -18,6 +18,7 @@ gym-frontend/.vite-temp/
 ### Browser verification artifacts ###
 .playwright-cli/
 output/playwright/
+output/release/
 
 ### STS ###
 .apt_generated
