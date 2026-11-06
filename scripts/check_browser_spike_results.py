@@ -1,27 +1,44 @@
 #!/usr/bin/env python3
 """Require actual frontend coordination/BFF results AND disposable HTTPS browser evidence."""
+import html
 import json
 import pathlib
 import sys
 import xml.etree.ElementTree as ET
 NODE_REQUIRED={
+ 'unwritable storage fails closed inside the lock before any proof or writer request',
+ 'native restart rejects 503 with still present AUTH',
+ 'native restart rejects other family',
+ 'test hold-before gate forwards no request until its exact held request is released',
+
  'forwards raw bytes and raw target with a verified request-bound RS256 proof, stripping untrusted headers',
  'never follows upstream redirects or retries a timed-out transition',
  'cookie transport fails closed when Web Locks are unsupported',
  'uncertain cookie delivery persists across client recreation without retry',
+ 'a pre-lock storage capability read cannot overwrite another client next-revision marker and strand recovery',
+ 'controlled gym denial with changed proof remains held without confirming identity',
+ 'recovery fails closed for uncorrelated context {"contextRevision":"7","familyRevision":"7"}',
+ 'recovery fails closed for uncorrelated context {"familyId":"8b7cbd5c-1059-41d8-9494-37b1bc457b02"}',
+ 'received-cookie recovery preserves a replacement marker during post-ACK status validation',
+ 'queued lock is aborted within its bound and a late grant never runs protected work',
+ 'expired or revoked current AUTH requires explicit logout and ACK before fresh credentials',
+
 }
 BROWSER_REQUIRED={
  'secure-http-only-host-cookie','no-browser-auth-secrets','same-origin-no-store','legacy-bearer-route-blocked','unsafe-without-csrf-blocked','no-state-changing-get','cross-origin-blocked','client-tenant-selector-blocked',
  'gym-1-all-role-isolation','gym-1-membership-rules','gym-1-booking-conflict','gym-1-catalog-history','gym-2-all-role-isolation','gym-2-membership-rules','gym-2-booking-conflict','gym-2-catalog-history',
  'foreground-session-revalidation','persisted-pageshow-revalidation','pending-blocks-business','pending-blocks-second-login','pending-blocks-logout','two-tab-gym-change','logout-pending-blocks-login','logout-expires-auth-cookie','logout-no-old-session','refresh-back-session-restore','live-web-lock-serialization','queued-old-view-write-blocked','tab-close-uncertainty','timeout-uncertainty','no-uncaught-errors',
 }
-SHARED_REQUIRED={'shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed'}
+SHARED_REQUIRED={'shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed','shared-login-abuse-budget','shared-login-abuse-no-cookie'}
 def check(node_file,browser_file,shared_file):
     xml=ET.parse(node_file).getroot()
     cases=xml.findall('.//testcase')
     if not cases or xml.findall('.//failure') or xml.findall('.//error') or xml.findall('.//skipped'):
         raise ValueError('Failed, absent or skipped frontend evidence')
-    if not NODE_REQUIRED<={case.get('name') for case in cases}:
+    # Node 22 JUnit may entity-encode dynamic name quotes before XML escaping.
+    # Normalize that one reporter layer only; retain exact required-name equality.
+    names={html.unescape(case.get('name','')) for case in cases}
+    if not NODE_REQUIRED<=names:
         raise ValueError('Missing critical frontend coordination or gateway tests')
     report=json.loads(pathlib.Path(browser_file).read_text())
     checks=report.get('checks',[])
