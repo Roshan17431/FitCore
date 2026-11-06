@@ -11,6 +11,7 @@ public final class BrowserSpikeFixture {
         // connection verifies the harness URL, exact database name and real container marker.
         try(var ignored=f.connection()){}f.migrate("latest");
         String hash=new BCryptPasswordEncoder().encode("Browser-Spike!2026");
+        String recoveryHash=new BCryptPasswordEncoder().encode("Browser-Policy-New!2026");
         try(var c=f.connection()){
             c.setAutoCommit(false);
             for(int n=1;n<=2;n++){
@@ -20,6 +21,13 @@ public final class BrowserSpikeFixture {
                     String name=new String[]{"ADMIN","TRAINER","MEMBER"}[role];
                     FoundationMigrationTest.execute(c,"insert into users(id,full_name,email,password_hash,role,enabled,email_verified_at,gym_id,created_at,updated_at) values(?,?,?,?,?,true,now(),?,now(),now())",user(n,role),"GYM_"+n+"_"+name,name.toLowerCase()+n+"@fixture.invalid",hash,name,f.gym(n));
                 }
+                for(int extra=1;extra<=2;extra++){
+                    String label=extra==1?"member":"peer";
+                    UUID id=UUID.fromString("40000000-0000-0000-0000-"+String.format("%012d",n*10+extra));
+                    FoundationMigrationTest.execute(c,"insert into users(id,full_name,email,password_hash,role,enabled,email_verified_at,gym_id,created_at,updated_at) values(?,?,?,?,'MEMBER',true,now(),?,now(),now())",id,"UI_GYM_"+n+"_"+label.toUpperCase(),"ui-"+label+n+"@fixture.invalid",hash,f.gym(n));
+                }
+                UUID donor=UUID.fromString("50000000-0000-0000-0000-"+String.format("%012d",n));
+                FoundationMigrationTest.execute(c,"insert into users(id,full_name,email,password_hash,role,enabled,email_verified_at,gym_id,created_at,updated_at) values(?,?,?,?,'MEMBER',true,now(),?,now(),now())",donor,"Synthetic password donor "+n,"passworddonor"+n+"@fixture.invalid",recoveryHash,f.gym(n));
                 FoundationMigrationTest.execute(c,"insert into membership_plans(id,name,price,duration_months,recommended,gym_id) values(?,'Basic',29,1,false,?),(?,'Premium',79,3,true,?)",n*100,f.gym(n),n*100+1,f.gym(n));
                 FoundationMigrationTest.execute(c,"insert into trainer_profiles(id,user_id,specialization,experience_years,gym_id) values(?,?,'Strength',4,?)",n*100,user(n,1),f.gym(n));
                 FoundationMigrationTest.execute(c,"insert into exercises(id,name,category,difficulty,gym_id) values(?,'Historical Bench','Strength','BEGINNER',?)",n*100,f.gym(n));
