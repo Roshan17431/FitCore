@@ -2,6 +2,7 @@
 import https from 'node:https';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { dispatchFixtureRequest } from './fixture-request-gate.mjs';
 import { createBff } from '../bff/gateway.mjs';
 
 const options=JSON.parse(await readFile(process.argv[2], 'utf8'));
@@ -11,29 +12,24 @@ const types={'.html':'text/html; charset=utf-8','.js':'application/javascript','
 const gates = new Map();
 const server=https.createServer({key:options.tlsKeyPem,cert:options.tlsCertPem,minVersion:'TLSv1.2',maxHeaderSize:16384},async(req,res)=>{
   // This entire wrapper exists only in the disposable test harness, never app hosting.
-  if(req.method==='GET' && req.url==='/__fixture/browser-session.js') {
+  if(req.method==='GET' && ['/__fixture/browser-session.js','/__fixture/restart-proof.js'].includes(req.url)) {
     res.setHeader('Content-Type','application/javascript');res.setHeader('Cache-Control','no-store');
-    res.end(await readFile(new URL('../src/services/browser-session.js',import.meta.url)));return;
+    res.end(await readFile(new URL(req.url.endsWith('restart-proof.js')?'./cookie-restart-proof.mjs':'../src/services/browser-session.js',import.meta.url)));return;
   }
   if(req.url.startsWith('/__fixture/')) {
     if(req.headers['x-fitcore-fixture']!==options.fixtureControl || req.socket.remoteAddress!=='127.0.0.1'){res.writeHead(403).end();return;}
     const command=req.url.substring('/__fixture/'.length);
-    if(req.method==='GET' && command==='state'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([...gates].map(([target,gate])=>({target,waiting:gate.waiting.length}))));return;}
+    if(req.method==='GET' && command==='state'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([...gates].map(([target,gate])=>({target,mode:gate.mode,waiting:gate.waiting.length}))));return;}
     if(req.method!=='POST'){res.writeHead(405).end();return;}
     let body='';for await(const chunk of req){body+=chunk;if(body.length>256){res.writeHead(413).end();return;}}
-    if(!['/api/browser/bootstrap','/api/browser/login','/api/browser/logout'].includes(body)){res.writeHead(400).end();return;}
-    if(['hold','hold-body'].includes(command) && !gates.has(body))gates.set(body,{waiting:[],mode:command});
+    if(!['/api/browser/bootstrap','/api/browser/login','/api/browser/logout','/api/browser/ack'].includes(body)){res.writeHead(400).end();return;}
+    if(['hold','hold-body','hold-before'].includes(command) && !gates.has(body))gates.set(body,{waiting:[],mode:command});
     else if(command==='release') {const gate=gates.get(body);gates.delete(body);for(const send of gate?.waiting??[])send();}
     else {res.writeHead(409).end();return;}
     res.writeHead(204).end();return;
   }
   if(req.url.startsWith('/api/')) {
-    const gate=gates.get(req.url);
-    if(gate) {
-      const end=res.end.bind(res);
-      res.end=(...args)=>{if(res.statusCode>=200&&res.statusCode<300){if(gate.mode==='hold-body')res.flushHeaders();gate.waiting.push(()=>{if(!res.destroyed)end(...args);});}else end(...args);return res;};
-    }
-    return handler(req,res);
+    return dispatchFixtureRequest(gates.get(req.url),req,res,handler);
   }
   res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
   res.setHeader('Cache-Control','no-store');
