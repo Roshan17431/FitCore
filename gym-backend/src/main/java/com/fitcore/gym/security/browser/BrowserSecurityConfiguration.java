@@ -1,12 +1,12 @@
 package com.fitcore.gym.security.browser;
 
 import com.fitcore.gym.security.TenantActor;
+import com.fitcore.gym.security.SharedAbuseLimiter;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.*;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -21,7 +21,7 @@ import java.util.*;
 @Configuration
 @ConditionalOnProperty(name="fitcore.browser.spike-enabled",havingValue="true")
 public class BrowserSecurityConfiguration {
-    @Bean SecurityFilterChain browserSecurity(HttpSecurity http,JdbcTemplate jdbc,BrowserSessionService sessions,
+    @Bean SecurityFilterChain browserSecurity(HttpSecurity http,BrowserSecurityMaintenance maintenance,SharedAbuseLimiter limiter,BrowserSessionService sessions,
         @Value("${fitcore.browser.public-origin}") String origin,
         @Value("${fitcore.browser.gateway-public-key}") String publicKey) throws Exception {
         var csrfRepository=new CsrfTokenRepository(){
@@ -40,7 +40,7 @@ public class BrowserSecurityConfiguration {
                 .requestMatchers("/api/admin/**").hasAnyRole("OWNER","ADMIN").anyRequest().authenticated())
             .exceptionHandling(e->e.authenticationEntryPoint((r,s,x)->BrowserGatewayFilter.error(s,401,"AUTHENTICATION_REQUIRED")).accessDeniedHandler((r,s,x)->BrowserGatewayFilter.error(s,403,"ACCESS_DENIED")))
             .addFilterBefore(new SessionFilter(sessions),CsrfFilter.class)
-            .addFilterBefore(new BrowserGatewayFilter(jdbc,origin,publicKey),SessionFilter.class);
+            .addFilterBefore(new BrowserGatewayFilter(maintenance,limiter,origin,publicKey),SessionFilter.class);
         return http.build();
     }
     private static final class SessionFilter extends OncePerRequestFilter{

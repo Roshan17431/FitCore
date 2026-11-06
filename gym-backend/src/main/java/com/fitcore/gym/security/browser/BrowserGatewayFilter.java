@@ -3,7 +3,9 @@ package com.fitcore.gym.security.browser;
 import io.jsonwebtoken.*;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.fitcore.gym.security.SharedAbuseLimiter;
+import org.springframework.dao.DataAccessException;
+import org.springframework.transaction.TransactionException;
 import org.springframework.http.MediaType;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,11 +19,12 @@ import java.util.*;
 
 /** Internal proof is method/target/body/cookie-bound, short-lived, and single-use across instances. */
 final class BrowserGatewayFilter extends OncePerRequestFilter {
-    private final JdbcTemplate jdbc;
+    private final BrowserSecurityMaintenance maintenance;
+    private final SharedAbuseLimiter limiter;
     private final PublicKey publicKey;
     private final String origin;
-    BrowserGatewayFilter(JdbcTemplate jdbc,String origin,String pem){
-        this.jdbc=jdbc;this.origin=origin;
+    BrowserGatewayFilter(BrowserSecurityMaintenance maintenance,SharedAbuseLimiter limiter,String origin,String pem){
+        this.maintenance=maintenance;this.limiter=limiter;this.origin=origin;
         try{
             var uri=java.net.URI.create(origin);
             if(!"https".equals(uri.getScheme()) || !Set.of("127.0.0.1","localhost","[::1]").contains(uri.getHost()) || uri.getPort()<1 || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null || !uri.getRawPath().isEmpty())throw new IllegalArgumentException();
@@ -57,10 +60,16 @@ final class BrowserGatewayFilter extends OncePerRequestFilter {
             Object clientIp=c.get("clientIp");
             boolean loopbackClient=clientIp instanceof String && Set.of("127.0.0.1","::1","::ffff:127.0.0.1").contains(clientIp);
             if(!"RS256".equals(signed.getHeader().getAlgorithm()) || issue==null || expiry==null || issue.toInstant().isAfter(now.plusSeconds(5)) || issue.toInstant().isBefore(now.minusSeconds(35)) || !expiry.after(issue) || expiry.getTime()-issue.getTime()>30000 || !request.getMethod().equals(c.get("method",String.class)) || !target.equals(c.get("target",String.class)) || !BrowserSessionService.digest(body).equals(c.get("bodySha256",String.class)) || !BrowserSessionService.digest(cookies).equals(c.get("cookieSha256",String.class)) || !loopbackClient || c.getId()==null || !c.getId().matches("[a-fA-F0-9-]{36}"))throw new BrowserSessionService.Failure(401,"INVALID_GATEWAY_PROOF");
-            // JdbcTemplate autocommit outside handler transactions: failed writes cannot resurrect a nonce.
-            jdbc.update("delete from browser_gateway_nonces where expires_at < now()");
-            int inserted=jdbc.update("insert into browser_gateway_nonces(nonce_hash,expires_at) values(?,?) on conflict do nothing",BrowserSessionService.digest(c.getId()),java.sql.Timestamp.from(now.plusSeconds(120)));
-            if(inserted!=1)throw new BrowserSessionService.Failure(401,"GATEWAY_PROOF_REPLAYED");
+            // Shared, bounded and independently committed before business transactions.
+            try {
+                if(!maintenance.consumeNonce(BrowserSessionService.digest(c.getId()),now.plusSeconds(120)))
+                    throw new BrowserSessionService.Failure(401,"GATEWAY_PROOF_REPLAYED");
+                if(Set.of("/api/browser/bootstrap","/api/browser/login").contains(request.getRequestURI())
+                    && !limiter.allow(request.getRequestURI(),(String)clientIp))
+                    throw new BrowserSessionService.Failure(429,"RATE_LIMITED");
+            }catch(DataAccessException | TransactionException unavailable){
+                throw new BrowserSessionService.Failure(503,"SECURITY_STORE_UNAVAILABLE");
+            }
             if("/api/browser/bootstrap".equals(request.getRequestURI()) && (!"POST".equals(request.getMethod()) || !"1".equals(request.getHeader("X-FitCore-Bootstrap")) || !bootstrapJson(request.getContentType())))throw new BrowserSessionService.Failure(403,"BOOTSTRAP_ADMISSION_REQUIRED");
             if(request.getRequestURI().startsWith("/api/browser/")) {
                 String path=request.getRequestURI();
