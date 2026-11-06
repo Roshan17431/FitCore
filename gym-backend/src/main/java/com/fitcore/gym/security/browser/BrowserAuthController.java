@@ -15,7 +15,7 @@ public class BrowserAuthController {
     public record Login(String email,String password){}
     @PostMapping("/bootstrap") public Map<String,Object> bootstrap(HttpServletRequest r,HttpServletResponse s){return sessions.bootstrap(r,s);}
     @GetMapping("/csrf") public Map<String,Object> csrf(HttpServletRequest r){return sessions.csrf(context(r));}
-    @GetMapping("/state") public Map<String,Object> state(HttpServletRequest r){var c=sessions.csrf(context(r));return Map.of("transitionState",c.get("transitionState"),"authenticated",c.get("authenticated"));}
+    @GetMapping("/state") public Map<String,Object> state(HttpServletRequest r){var c=new LinkedHashMap<>(sessions.csrf(context(r)));c.remove("csrfToken");return c;}
     @PostMapping("/login") public Map<String,Object> login(@RequestBody Login body,HttpServletRequest r,HttpServletResponse s){return sessions.login(context(r),body.email(),body.password(),s);}
     @PostMapping("/logout") public Map<String,Object> logout(HttpServletRequest r,HttpServletResponse s){return sessions.logout(context(r),s);}
     @PostMapping("/ack") public Map<String,Object> ack(HttpServletRequest r){return sessions.ack(context(r),r);}

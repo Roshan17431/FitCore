@@ -1,7 +1,6 @@
 package com.fitcore.gym.security.browser;
 
 import com.fitcore.gym.domain.GymStatus;
-import com.fitcore.gym.dto.user.SessionUserDto;
 import com.fitcore.gym.entity.User;
 import com.fitcore.gym.repository.GymRepository;
 import com.fitcore.gym.security.CustomUserDetailsService;
@@ -97,11 +96,37 @@ public class BrowserSessionService {
             return u;
         }catch(AuthenticationException e){throw new Failure(401,"SESSION_REVOKED");}
     }
-    private Map<String,Object> state(Context c){return Map.of("csrfToken",c.csrf(),"authenticated","AUTH".equals(c.kind()) && c.current() && !c.pending(),"transitionState",c.pending()?"PENDING":"IDLE");}
+    private boolean liveControl(Context c){
+        return c!=null && !c.used() && c.revision()==c.currentRevision()
+            && c.familyExpires().isAfter(Instant.now()) && c.absolute().isAfter(Instant.now());
+    }
+    private Map<String,Object> state(Context c,boolean authenticated,boolean reauthenticationRequired){
+        var result=new LinkedHashMap<String,Object>();
+        result.put("csrfToken",c.csrf());result.put("authenticated",authenticated);
+        result.put("transitionState",c.pending()?"PENDING":"IDLE");
+        // Correlation is deliberately non-authorizing. Never expose handle or digest.
+        result.put("familyId",c.family().toString());
+        result.put("contextRevision",Long.toString(c.revision()));
+        result.put("familyRevision",Long.toString(c.currentRevision()));
+        result.put("contextKind",c.kind());
+        result.put("currentContext",!c.used() && c.revision()==c.currentRevision());
+        result.put("pendingKind",c.pendingKind());
+        result.put("reauthenticationRequired",reauthenticationRequired);
+        return result;
+    }
     public Map<String,Object> csrf(Context c){
-        if(c==null || !c.familyExpires().isAfter(Instant.now()) || (!c.current() && !c.pending()))throw new Failure(401,"BROWSER_CONTEXT_REQUIRED");
-        if("AUTH".equals(c.kind()) && c.current())account(c);
-        return state(c);
+        if(c==null || !c.familyExpires().isAfter(Instant.now()) || !c.absolute().isAfter(Instant.now())
+            || (!c.current() && !c.pending() && !liveControl(c)))throw new Failure(401,"BROWSER_CONTEXT_REQUIRED");
+        boolean reauthenticationRequired=!c.current(),authenticated=false;
+        if("AUTH".equals(c.kind()) && c.current()){
+            try { account(c);authenticated=!c.pending(); }
+            catch(Failure invalid){
+                // Current-context control proof can revoke its own handle, never authenticate.
+                if(invalid.status!=401 && invalid.status!=403)throw invalid;
+                reauthenticationRequired=true;
+            }
+        }
+        return state(c,authenticated,reauthenticationRequired);
     }
     @Transactional
     public Map<String,Object> bootstrap(HttpServletRequest request,HttpServletResponse response){
@@ -109,7 +134,7 @@ public class BrowserSessionService {
         Instant now=Instant.now(),end=now.plus(Duration.ofHours(12));UUID id=UUID.randomUUID();
         jdbc.update("insert into browser_session_families(id,created_at,expires_at) values(?,?,?)",id,Timestamp.from(now),Timestamp.from(end));
         String handle=insert(id,"PREAUTH",0,null,now,end);
-        setCookie(response,PREAUTH,handle,false);return state(find(digest(handle)));
+        setCookie(response,PREAUTH,handle,false);return csrf(find(digest(handle)));
     }
     private String insert(UUID family,String kind,long revision,User user,Instant now,Instant absolute){
         String handle=secret(),csrf=secret();
@@ -122,6 +147,7 @@ public class BrowserSessionService {
     @Transactional
     public Map<String,Object> login(Context before,String email,String password,HttpServletResponse response){
         Context c=lock(before);requireIdle(c);
+        if("AUTH".equals(c.kind()))account(c); // A revoked source may only sign out.
         if(email==null || password==null || email.length()>254 || password.length()>256)throw new Failure(401,"INVALID_CREDENTIALS");
         User u;
         try{
@@ -133,7 +159,7 @@ public class BrowserSessionService {
         long revision=c.currentRevision()+1;String handle=insert(c.family(),"AUTH",revision,u,Instant.now(),c.familyExpires());
         retireAndFence(c,revision,digest(handle),"LOGIN");
         setCookie(response,AUTH,handle,false);
-        return Map.of("user",SessionUserDto.from(u,gym),"csrfToken",find(digest(handle)).csrf(),"transitionState","PENDING");
+        return csrf(find(digest(handle)));
     }
     private void retireAndFence(Context c,long revision,String hash,String kind){
         jdbc.update("update browser_sessions set used=true where family_id=? and token_hash<>?",c.family(),hash);
@@ -141,11 +167,13 @@ public class BrowserSessionService {
     }
     @Transactional
     public Map<String,Object> logout(Context before,HttpServletResponse response){
-        Context c=lock(before);requireIdle(c);
+        Context c=lock(before);
+        if(c.pending())throw new Failure(423,"COOKIE_DELIVERY_PENDING");
+        if(!liveControl(c))throw new Failure(401,"SESSION_RETIRED");
         long revision=c.currentRevision()+1;String handle=insert(c.family(),"PREAUTH",revision,null,Instant.now(),c.familyExpires());
         retireAndFence(c,revision,digest(handle),"LOGOUT");
         setCookie(response,AUTH,"",true);setCookie(response,PREAUTH,handle,false);
-        return Map.of("csrfToken",find(digest(handle)).csrf(),"transitionState","PENDING");
+        return csrf(find(digest(handle)));
     }
     @Transactional
     public Map<String,Object> ack(Context before,HttpServletRequest request){
