@@ -30,6 +30,7 @@ class BrowserSessionSecurityTest extends BrowserAdmissionTest {
     }
     @BeforeEach void accounts()throws Exception{
         f.schema=SCHEMA;
+        jdbc.update("delete from security_rate_limits");
         String hash=new BCryptPasswordEncoder().encode(PASSWORD);
         try(var c=f.connection()){
             c.setAutoCommit(false);

@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /** Vetted signature verification plus shared nonce consumption, exact origin and byte binding. */
 class BrowserGatewaySecurityTest extends BrowserAdmissionTest {
     @Autowired JdbcTemplate jdbc;
+    @BeforeEach void isolateSyntheticRates(){jdbc.update("delete from security_rate_limits");}
     String assertion(Map<String,Object> edits)throws Exception{return assertion(edits,Set.of());}
     String assertion(Map<String,Object> edits,Set<String> omitted)throws Exception{
         Instant now=Instant.now();var c=new HashMap<String,Object>();
