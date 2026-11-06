@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { approvedExerciseImage } from '../utils/catalog';
-import { cookieMode, cookieApiRequest, browserLogin, browserLogout, browserMe } from './browser-session.js';
+import { cookieMode, cookieApiRequest, browserLogin, browserLogout, browserMe, browserRecovery } from './browser-session.js';
 
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
@@ -13,6 +13,7 @@ const apiConfigError = cookieMode || backendBaseURL
   : 'Missing VITE_API_BASE_URL. Set it to the backend origin, for example: https://fitcore-posv.onrender.com';
 
 export const formatApiError = (error, fallbackMessage = 'Request failed.') => {
+  if (error.cookieDefinitiveDenial && error.response?.data?.message === 'INVALID_CREDENTIALS') return 'Email or password is incorrect.';
   if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
     return 'The server took too long to respond. It may be starting up. Please try again shortly.';
   }
@@ -237,6 +238,7 @@ export const authService = {
   completeReset: ({ email, token, password }) => api.post('/auth/reset-password', { email, token, password }).then(unwrap),
   login: (email, password) => cookieMode ? browserLogin(email, password) : api.post('/auth/login', { email, password }).then(unwrap),
   logout: () => cookieMode ? browserLogout() : Promise.resolve(),
+  browserRecovery: () => cookieMode ? browserRecovery() : Promise.reject(new Error('Cookie sessions are unavailable.')),
   register: ({ fullName, email, password, fitnessGoal, invitationToken }) =>
     api.post('/auth/register', { fullName, email, password, fitnessGoal, invitationToken }).then(unwrap),
   registerOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/register-owner', { fullName, email, password, gymName, slug }).then(unwrap),

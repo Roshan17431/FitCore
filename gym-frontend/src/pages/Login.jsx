@@ -9,7 +9,7 @@ import AuthLayout from '../layouts/AuthLayout';
 import { dashboardPath } from '../utils/tenant-session';
 
 const Login = () => {
-  const { login, sessionError, cookieTransport } = useContext(AuthContext);
+  const { login, logout, recoverSession, sessionError, cookieTransport, sessionRecoveryAvailable, sessionSignOutRequired } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [form, setForm] = useState({ email: '', password: '', rememberMe: true });
@@ -44,6 +44,22 @@ const Login = () => {
     }
   };
 
+  const checkSession = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true); setError('');
+    try {
+      const result = await recoverSession();
+      if (result.success && result.user) navigate(dashboardPath(result.user), {replace:true});
+      else if (!result.success) setError(result.error);
+    } finally { setIsSubmitting(false); }
+  };
+  const signOutPrevious = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true); setError('');
+    try { await logout(); }
+    finally { setIsSubmitting(false); }
+  };
+
   return (
     <AuthLayout>
         <Card className="w-full border-0 bg-transparent p-0 shadow-none sm:p-0">
@@ -57,6 +73,13 @@ const Login = () => {
             <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300">
               {error || sessionError}
             </div>
+          ) : null}
+
+          {cookieTransport && sessionRecoveryAvailable ? (
+            <Button className="mb-4 w-full" disabled={isSubmitting} onClick={checkSession} type="button">Check sign-in status</Button>
+          ) : null}
+          {cookieTransport && sessionSignOutRequired ? (
+            <Button className="mb-4 w-full" disabled={isSubmitting} onClick={signOutPrevious} type="button">Sign out previous session</Button>
           ) : null}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
@@ -97,7 +120,7 @@ const Login = () => {
               </Link>
             </div>
 
-            <Button className="w-full" isLoading={isSubmitting} type="submit">
+            <Button className="w-full" isLoading={isSubmitting} disabled={cookieTransport && (sessionRecoveryAvailable || sessionSignOutRequired)} type="submit">
               Login
             </Button>
           </form>

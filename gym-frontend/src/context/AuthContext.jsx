@@ -77,6 +77,12 @@ const BearerAuthProvider = ({ children, initialInvitation = null, initialSecurit
 const CookieAuthProvider = ({ children }) => {
   const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [sessionError, setSessionError] = useState('');
   const [sessionRevision, setSessionRevision] = useState(0);
+  const [sessionRecoveryAvailable, setSessionRecoveryAvailable] = useState(false), [sessionSignOutRequired, setSessionSignOutRequired] = useState(false);
+  const recordError = useCallback(error => {
+    setSessionError(formatApiError(error, 'Unable to confirm this session.'));
+    setSessionRecoveryAvailable(error.code === 'COOKIE_UNCERTAIN' || error.code === 'COOKIE_LOCK_TIMEOUT');
+    setSessionSignOutRequired(error.code === 'COOKIE_REAUTH_REQUIRED');
+  }, []);
   const generation = useRef(0), localWriters = useRef(0), displayedUser = useRef(null);
   displayedUser.current = user;
   const invalidate = useCallback(() => {
@@ -89,11 +95,11 @@ const CookieAuthProvider = ({ children }) => {
       const current = await authService.me();
       if (version !== generation.current) return;
       if (current) clearForeignTrainingState(current);
-      setUser(current); setSessionError('');
+      setUser(current); setSessionError(''); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
     } catch (error) {
-      if (version === generation.current) setSessionError(formatApiError(error, 'Unable to confirm this session.'));
+      if (version === generation.current) recordError(error);
     } finally { if (version === generation.current) setLoading(false); }
-  }, [invalidate]);
+  }, [invalidate, recordError]);
   useEffect(() => {
     const unsubscribe = subscribeSessionChange(event => {
       // Local transitions belong to this provider's pending login/logout. External
@@ -102,7 +108,7 @@ const CookieAuthProvider = ({ children }) => {
       if (event.state !== 'IDLE') {
         invalidate();
         if (event.external || event.state === 'ENDED') setLoading(false);
-        if (event.state === 'UNCERTAIN') setSessionError('Cookie delivery is uncertain. This browser session is blocked; contact the local test operator.');
+        if (event.state === 'UNCERTAIN') { setSessionRecoveryAvailable(true); setSessionSignOutRequired(false); setSessionError('Cookie delivery is uncertain. Check sign-in status before continuing.'); }
         if (event.state === 'ENDED') setSessionError('Your session changed or is unavailable. Sign in again.');
       } else if (event.external) { void restore(); }
     });
@@ -120,10 +126,28 @@ const CookieAuthProvider = ({ children }) => {
     localWriters.current++;
     const version = ++generation.current;
     invalidate(); setLoading(false); setSessionError('');
-    try { await authService.logout(); }
-    catch (error) { if (version === generation.current) setSessionError(formatApiError(error)); }
+    try {
+      await authService.logout();
+      if (version === generation.current) { setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); }
+    }
+    catch (error) { if (version === generation.current) recordError(error); }
     finally { localWriters.current--; }
-  }, [invalidate]);
+  }, [invalidate, recordError]);
+  const recoverSession = async () => {
+    localWriters.current++;
+    const version = ++generation.current;
+    invalidate(); setLoading(true); setSessionError('');
+    try {
+      const current = await authService.browserRecovery();
+      if (version !== generation.current) return {success:false,error:'Session changed. Check sign-in status again.'};
+      if (current) clearForeignTrainingState(current);
+      setUser(current); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
+      return {success:true,user:current};
+    } catch (error) {
+      if (version === generation.current) recordError(error);
+      return {success:false,error:formatApiError(error)};
+    } finally { localWriters.current--; if (version === generation.current) setLoading(false); }
+  };
   const login = async (email, password) => {
     localWriters.current++;
     const version = ++generation.current;
@@ -131,16 +155,19 @@ const CookieAuthProvider = ({ children }) => {
     try {
       const current = await authService.login(email, password);
       if (version !== generation.current) return {success:false,error:'Session changed. Sign in again.'};
-      clearForeignTrainingState(current); setUser(current); setLoading(false);
+      clearForeignTrainingState(current); setUser(current); setLoading(false); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
       return {success:true,user:current};
     } catch (error) {
-      if (version === generation.current) { invalidate(); setLoading(false); setSessionError(formatApiError(error)); }
+      if (version === generation.current) {
+        invalidate(); setLoading(false); recordError(error);
+        if (error.cookieDefinitiveDenial && error.cookieSessionUser) { clearForeignTrainingState(error.cookieSessionUser); setUser(error.cookieSessionUser); }
+      }
       return {success:false,error:formatApiError(error)};
     } finally { localWriters.current--; }
   };
   const unavailable = async () => ({success:false,error:'Registration, verification and recovery are unavailable in this cookie test environment.'});
   const value = {
-    user, loading, sessionError, sessionRevision, cookieTransport:true,
+    user, loading, sessionError, sessionRevision, cookieTransport:true, sessionRecoveryAvailable, sessionSignOutRequired, recoverSession,
     invitationToken:null, securityToken:null,
     clearInvitation:() => {}, captureIncomingInvitation:() => {}, clearSecurity:() => {}, captureIncomingSecurity:() => {},
     login, logout, refresh:restore, register:unavailable, registerOwner:unavailable, resetPassword:unavailable,
