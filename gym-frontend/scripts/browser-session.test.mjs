@@ -8,8 +8,27 @@ const storage = () => { const data = new Map(); return { getItem: k => data.get(
 const locks = () => { let tail = Promise.resolve(); return { request: (_name,_options,fn) => { const next = tail.then(fn); tail = next.catch(() => {}); return next; } }; };
 const response = (data,status=200) => ({ok:status>=200&&status<300,status,headers:new Headers(),text:async()=>JSON.stringify(data)});
 const idle = {csrfToken:'csrf-memory',authenticated:false,transitionState:'IDLE'};
+// Existing scenarios use a stateful fake server for the frozen metadata/ACK wire.
+// New adversarial metadata tests use unmodified complete responses in browser-recovery.test.mjs.
+const protocol = fetch => {
+ let rev=0,latest;
+ return async (url,config) => {
+  const result=await fetch(url,config), data=JSON.parse(await result.text());
+  if(data.transitionState){
+   const pending=data.transitionState==='PENDING';
+   if(pending)rev++;
+   const kind=pending?(url.endsWith('/logout')?'LOGOUT':'LOGIN'):null;
+   const authenticated=pending?false:data.authenticated;
+   const full={familyId:'2b830b6d-8b6d-4f46-bcc3-39091199f323',contextRevision:String(rev),familyRevision:String(rev),contextKind:(pending?kind==='LOGIN':authenticated)?'AUTH':'PREAUTH',currentContext:true,pendingKind:kind,reauthenticationRequired:false,...data,authenticated};
+   if(pending)latest=full;
+   else if(latest&&data.transitionState==='IDLE')Object.assign(full,{csrfToken:latest.csrfToken,authenticated:latest.contextKind==='AUTH',contextKind:latest.contextKind});
+   return response(full,result.status);
+  }
+  return response(data,result.status);
+ };
+};
 const user = {id:'user-a',gymId:'gym-a',role:'OWNER',authzVersion:4};
-const fixture = async (fetch, overrides={}) => { const {createCookieSession} = await load(); assert.equal(typeof createCookieSession,'function','cookie session coordinator must exist'); const env = {storage:storage(),locks:locks(),fetch,timeoutMs:50,...overrides}; return {env, session:createCookieSession(env)}; };
+const fixture = async (fetch, overrides={}) => { const {createCookieSession} = await load(); assert.equal(typeof createCookieSession,'function','cookie session coordinator must exist'); const env = {storage:storage(),locks:locks(),fetch:protocol(fetch),timeoutMs:50,...overrides}; return {env, session:createCookieSession(env)}; };
 
 test('cookie transport fails closed when Web Locks are unsupported',async()=>{
  for (const overrides of [{locks:null},{storage:null},{storage:{getItem(){throw Error('denied');}}}]) {
@@ -18,18 +37,18 @@ test('cookie transport fails closed when Web Locks are unsupported',async()=>{
  }
 });
 test('login bootstraps under marker, ACKs delivery, then reads fresh me without exposing login identity or tokens',async()=>{
- const calls=[];let env;
+ const calls=[];let env, bootstrapped=false;
  const fixtureResult=await fixture(async(url,config)=>{
   calls.push([url,config]);
-  if(url==='/api/browser/csrf')return response({},401);
-  if(url==='/api/browser/bootstrap'){assert.ok(env.storage.getItem('fitcore:cookie-transition'));return response(idle);}
+  if(url==='/api/browser/csrf')return bootstrapped?response(idle):response({},401);
+  if(url==='/api/browser/bootstrap'){bootstrapped=true;assert.ok(env.storage.getItem('fitcore:cookie-transition'));return response(idle);}
   if(url==='/api/browser/login')return response({user:{...user,role:'ADMIN'},csrfToken:'new-csrf',transitionState:'PENDING'});
   if(url==='/api/browser/ack'){assert.equal(config.headers['X-CSRF-TOKEN'],'new-csrf');return response({acknowledged:true});}
   if(url==='/api/auth/me')return response(user);
   throw Error(url);
  });env=fixtureResult.env;
  assert.deepEqual(await fixtureResult.session.browserLogin('owner@fixture.invalid','secret'),user);
- assert.deepEqual(calls.map(c=>c[0]),['/api/browser/csrf','/api/browser/bootstrap','/api/browser/login','/api/browser/ack','/api/auth/me']);
+ assert.deepEqual(calls.map(c=>c[0]),['/api/browser/csrf','/api/browser/bootstrap','/api/browser/login','/api/browser/ack','/api/browser/csrf','/api/auth/me','/api/browser/csrf']);
  for(const [,c] of calls){assert.equal(c.credentials,'same-origin');assert.equal(c.headers.Authorization,undefined);}
  assert.equal(env.storage.getItem('fitcore:cookie-transition'),null);
  const persisted=JSON.stringify([...env.storage.data]);assert.ok(!persisted.includes('csrf')&&!persisted.includes('secret')&&!persisted.includes('owner@'));
@@ -37,7 +56,7 @@ test('login bootstraps under marker, ACKs delivery, then reads fresh me without 
 test('logout ACK uses fresh preauth CSRF and never clears uncertainty before ACK succeeds',async()=>{
  let env;const urls=[];
  const f=await fixture(async(url,c)=>{urls.push(url);if(url.endsWith('/csrf'))return response({...idle,authenticated:true});if(url.endsWith('/logout'))return response({csrfToken:'preauth-csrf',transitionState:'PENDING'});assert.ok(env.storage.getItem('fitcore:cookie-transition'));assert.equal(c.headers['X-CSRF-TOKEN'],'preauth-csrf');return response({acknowledged:true});});env=f.env;
- await f.session.browserLogout();assert.deepEqual(urls,['/api/browser/csrf','/api/browser/logout','/api/browser/ack']);assert.equal(env.storage.getItem('fitcore:cookie-transition'),null);
+ await f.session.browserLogout();assert.deepEqual(urls,['/api/browser/csrf','/api/browser/logout','/api/browser/ack','/api/browser/csrf','/api/browser/csrf']);assert.equal(env.storage.getItem('fitcore:cookie-transition'),null);
 });
 test('live tabs serialize cookie transitions including ACK instead of rejecting the active marker',async()=>{
  const shared={storage:storage(),locks:locks()};const calls=[];let release,started;
