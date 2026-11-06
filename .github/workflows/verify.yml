@@ -31,6 +31,6 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/fitcore-playwright" @playwright/cli@0.1.22
           echo "$RUNNER_TEMP/fitcore-playwright/node_modules/.bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/fitcore-playwright/node_modules/.bin/playwright" install --with-deps chrome
+          "$RUNNER_TEMP/fitcore-playwright/node_modules/.bin/playwright" install --with-deps chrome firefox webkit
       - name: Backend, migrations, recovery, security, frontend and browser gates
         run: ./scripts/verify-release.sh
