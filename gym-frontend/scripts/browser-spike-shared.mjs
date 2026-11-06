@@ -44,5 +44,20 @@ const simultaneous=await Promise.all([send(18443,'POST','/api/browser/bootstrap'
 assert(simultaneous.map(r=>r.status).sort().join(',')==='200,401','one shared nonce acceptance');checks.push('shared-gateway-replay');
 const logins=await Promise.all([send(18443,'POST','/api/browser/login',{email:'owner1@fixture.invalid',password:'Browser-Spike!2026'}),send(18445,'POST','/api/browser/login',{email:'owner2@fixture.invalid',password:'Browser-Spike!2026'})]);
 assert(logins.map(r=>r.status).sort().join(',')==='200,423','one shared family transition');checks.push('shared-concurrent-login');
+// Bad credentials must consume a single shared ingress budget across both JVMs.
+jar.clear();csrf=undefined;r=await send(18443,'POST','/api/browser/bootstrap',{});assert(r.status===200,'abuse fixture preauth');accept(r);
+const remaining=300-(Math.floor(Date.now()/1000)%300);
+if(remaining<15)await new Promise(resolve=>setTimeout(resolve,remaining*1000+100));
+let exhausted=false,denials=0;
+for(let n=0;n<51;n++){
+  const attempt=await send(n%2?18443:18445,'POST','/api/browser/login',{email:'owner1@fixture.invalid',password:'incorrect-synthetic-password'});
+  assert(attempt.cookies.length===0,'failed ingress never writes a cookie');
+  if(attempt.status===429){exhausted=true;break;}
+  assert(attempt.status===401,'bad credential remains generic');denials++;
+}
+assert(exhausted&&denials>0&&denials<=50,'shared local peer ceiling counts earlier login attempts');
+const blocked=await Promise.all([18443,18445].map(port=>send(port,'POST','/api/browser/login',{email:'owner1@fixture.invalid',password:'Browser-Spike!2026'})));
+assert(blocked.every(r=>r.status===429&&r.cookies.length===0),'both instances enforce exhausted budget');checks.push('shared-login-abuse-budget');
+assert((await send(18445,'GET','/api/browser/state')).data.transitionState==='IDLE','rate denial never starts a family transition');checks.push('shared-login-abuse-no-cookie');
 await writeFile(output,JSON.stringify({passed:checks.length,checks,failures:[]},null,2));
 console.log(JSON.stringify({passed:checks.length,checks}));
