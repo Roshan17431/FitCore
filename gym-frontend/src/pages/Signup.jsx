@@ -4,6 +4,8 @@ import AuthLayout from '../layouts/AuthLayout';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import FormField from '../components/forms/FormField';
+import CookieSessionNotice from '../components/common/CookieSessionNotice';
+import { cookieAccountBlocked } from '../utils/security-token';
 import { AuthContext } from '../context/auth-context';
 import { authService, formatApiError } from '../services/api';
 import { dashboardPath, validateSignup } from '../utils/tenant-session';
@@ -13,15 +15,18 @@ export default function Signup({ owner = false, secure = false }) {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '', gymName: '', slug: '' });
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [success, setSuccess] = useState(false);
   const update = event => setForm(current => ({ ...current, [event.target.name]: event.target.value }));
-  const unavailable = auth.cookieTransport || (!owner && !auth.invitationToken);
+  const receiptOnly = secure || auth.cookieTransport;
+  const unavailable = (!owner && !auth.invitationToken);
+  const blocked = cookieAccountBlocked(auth);
   const submit = async event => {
-    event.preventDefault(); if (lock.current || unavailable) return;
+    event.preventDefault(); if (lock.current || unavailable || blocked || success) return;
     const validation = validateSignup(form, owner); setError(validation); if (validation) return;
     lock.current = true; setBusy(true);
     const input = { fullName: form.fullName.trim(), email: form.email.trim(), password: form.password };
     try {
-      if (secure) {
-        await (owner ? authService.pendingOwner({ ...input, gymName: form.gymName.trim(), slug: form.slug }) : authService.pendingInvite({ ...input, invitationToken: auth.invitationToken }));
+      if (receiptOnly) {
+        await (owner ? (auth.pendingOwner || authService.pendingOwner)({ ...input, gymName: form.gymName.trim(), slug: form.slug }) : (auth.pendingInvite || authService.pendingInvite)({ ...input, invitationToken: auth.invitationToken }));
+        if (!owner) auth.clearInvitation();
         setSuccess(true); setForm(current => ({ ...current, password: '', confirmPassword: '' })); return;
       }
       const result = owner ? await auth.registerOwner({ ...input, gymName: form.gymName.trim(), slug: form.slug }) : await auth.register({ ...input, invitationToken: auth.invitationToken });
@@ -33,10 +38,11 @@ export default function Signup({ owner = false, secure = false }) {
     <p className="mb-3 text-xs font-bold uppercase tracking-[.18em] text-brand">{owner ? 'Your gym. Your workspace.' : 'Your invitation to train'}</p>
     <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{owner ? 'Create your gym' : 'Join your gym'}</h1>
     <p className="mb-6 mt-3 text-sm leading-6 text-muted">{owner ? 'Bring your team and members together in one FitCore workspace.' : 'Use the exact email address invited by your gym. Your role and gym are assigned securely by the invitation.'}</p>
-    <p className="mb-6 rounded-xl border border-line bg-surface-alt p-3 text-xs leading-5 text-muted">{secure ? 'Email verification is required. External delivery remains disabled; this flow requires an approved local test sender.' : 'Registration is available only in approved local demos. Demo accounts are unverified. External email delivery is disabled.'}</p>
-    {unavailable ? <div role="status" className="space-y-4"><p>{auth.cookieTransport ? 'Registration is unavailable in this cookie test environment.' : 'Open a valid invitation link to join a gym. Public member registration is unavailable.'}</p><Link className="font-semibold text-brand" to="/create-gym">Create a gym workspace</Link></div> : <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+    <p className="mb-6 rounded-xl border border-line bg-surface-alt p-3 text-xs leading-5 text-muted">{receiptOnly ? 'Email verification is required. External delivery remains disabled; this flow requires an approved local test sender.' : 'Registration is available only in approved local demos. Demo accounts are unverified. External email delivery is disabled.'}</p>
+    <CookieSessionNotice />
+    {success && receiptOnly ? <p role="status">If this request is eligible and delivery is configured, check the invited inbox for verification. No account is created until verification succeeds. Sign in explicitly after verification.</p> : blocked ? null : unavailable ? <div role="status" className="space-y-4"><p>Open a valid invitation link to join a gym. Public member registration is unavailable.</p><Link className="font-semibold text-brand" to="/create-gym">Create a gym workspace</Link></div> : <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       {error ? <p role="alert" className="rounded-xl border border-line bg-surface-alt p-3 text-sm sm:col-span-2">{error}</p> : null}
-      {success ? <p role="status">{secure ? 'If this request is eligible and delivery is configured, check the invited inbox for verification. No account is created until verification succeeds.' : 'Account created. Opening your workspace…'}</p> : null}
+      {success ? <p role="status">{receiptOnly ? 'If this request is eligible and delivery is configured, check the invited inbox for verification. No account is created until verification succeeds.' : 'Account created. Opening your workspace…'}</p> : null}
       <FormField className="sm:col-span-2" required minLength={3} maxLength={100} autoComplete="name" label="Full name" name="fullName" value={form.fullName} onChange={update} />
       <FormField className="sm:col-span-2" required maxLength={254} autoComplete="email" type="email" label={owner ? 'Email' : 'Invited email'} name="email" value={form.email} onChange={update} />
       <FormField required minLength={12} maxLength={64} autoComplete="new-password" type="password" label="Password" name="password" value={form.password} onChange={update} />
@@ -45,7 +51,7 @@ export default function Signup({ owner = false, secure = false }) {
       {owner ? <><FormField required maxLength={100} label="Gym name" name="gymName" value={form.gymName} onChange={update} /><FormField required pattern="[a-z0-9][a-z0-9\-]{2,62}" label="Gym slug" name="slug" value={form.slug} onChange={update} /><p className="text-xs text-muted sm:col-span-2">Slug: 3–63 lowercase letters, numbers and hyphens. It must be unique.</p></> : null}
       <Button className="sm:col-span-2" type="submit" isLoading={busy}>{owner ? 'Create gym workspace' : 'Accept invitation'}</Button>
     </form>}
-    {!secure ? <p className="mt-5 text-sm"><Link className="font-semibold text-brand" to={owner ? '/secure/create-gym' : '/secure/register'}>Use email-verified registration</Link></p> : null}
+    {!receiptOnly ? <p className="mt-5 text-sm"><Link className="font-semibold text-brand" to={owner ? '/secure/create-gym' : '/secure/register'}>Use email-verified registration</Link></p> : null}
     <p className="mt-6 text-sm text-muted">Already registered? <Link className="font-semibold text-brand" to="/login">Sign in</Link></p>
   </Card></AuthLayout>;
 }

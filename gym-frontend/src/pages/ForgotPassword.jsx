@@ -5,10 +5,13 @@ import Button from '../components/common/Button';
 import Card from '../components/common/Card';
 import AuthLayout from '../layouts/AuthLayout';
 import FormField from '../components/forms/FormField';
+import CookieSessionNotice from '../components/common/CookieSessionNotice';
+import { cookieAccountBlocked } from '../utils/security-token';
 import { AuthContext } from '../context/auth-context';
 
 const ForgotPassword = () => {
-  const { resetPassword } = useContext(AuthContext);
+  const auth = useContext(AuthContext);
+  const { resetPassword } = auth;
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -16,7 +19,7 @@ const ForgotPassword = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || cookieAccountBlocked(auth)) return;
     setError('');
     setMessage('');
     const normalizedEmail = email.trim();
@@ -58,7 +61,8 @@ const ForgotPassword = () => {
           </div>
         ) : null}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <CookieSessionNotice />
+        {cookieAccountBlocked(auth) ? null : <form className="space-y-4" onSubmit={handleSubmit}>
           <FormField
             autoComplete="email"
             icon={Mail}
@@ -72,7 +76,7 @@ const ForgotPassword = () => {
           <Button className="w-full" isLoading={isSubmitting} type="submit">
             Request Reset
           </Button>
-        </form>
+        </form>}
 
         <p className="mt-6 text-center text-sm text-muted">
           <Link className="font-semibold text-brand" to="/login">

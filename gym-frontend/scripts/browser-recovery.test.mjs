@@ -12,6 +12,7 @@ const marker=(changes={})=>JSON.stringify({kind:'LOGIN',revision:'1',preFamilyId
 const fixture=(fetch,overrides={})=>{const env={storage:storage(),locks:{request:async(_n,_o,fn)=>fn()},fetch,timeoutMs:25,...overrides};return{env,session:createCookieSession(env)};};
 const hold=f=>{f.env.storage.setItem(REVISION,'1');f.env.storage.setItem(MARKER,marker());};
 const uncertain=e=>e.code==='COOKIE_UNCERTAIN';
+const fresh=e=>e.code==='COOKIE_FRESH_CONTEXT_REQUIRED';
 
 test('definitive unchanged wrong-password denial clears only its marker and permits an explicit retry',async()=>{
  let current=proof(), attempts=0;const calls=[];
@@ -37,11 +38,11 @@ for(const state of ['PENDING','IDLE'])test(`exact next-revision ${state} receive
  let acked=state==='IDLE';const calls=[];const f=fixture(async url=>{calls.push(url);if(url.endsWith('/csrf'))return response(next({transitionState:acked?'IDLE':'PENDING',pendingKind:acked?null:'LOGIN',authenticated:acked}));if(url.endsWith('/ack')){acked=true;return response({acknowledged:true});}if(url.endsWith('/me'))return response(user);throw Error(url);});hold(f);
  assert.deepEqual(await f.session.browserRecovery(),user);assert.equal(f.env.storage.getItem(MARKER),null);assert.equal(calls.filter(x=>x.endsWith('/ack')).length,state==='PENDING'?1:0);assert.ok(!calls.some(x=>x.endsWith('/login')||x.endsWith('/bootstrap')));
 });
-for(const mismatch of [{contextRevision:'7',familyRevision:'7'},{contextRevision:'9',familyRevision:'9'},{familyId:'8b7cbd5c-1059-41d8-9494-37b1bc457b02'},{contextRevision:'7',familyRevision:'8',transitionState:'PENDING',pendingKind:'LOGIN',authenticated:false,currentContext:false},{contextKind:'PREAUTH',authenticated:false},{pendingKind:'LOGOUT',transitionState:'PENDING'},{reauthenticationRequired:true,authenticated:false},{currentContext:false}])test(`recovery fails closed for uncorrelated context ${JSON.stringify(mismatch)}`,async()=>{
- const calls=[];const f=fixture(async url=>{calls.push(url);return response(next(mismatch));});hold(f);await assert.rejects(f.session.browserRecovery(),uncertain);assert.equal(f.env.storage.getItem(MARKER),marker());assert.deepEqual(calls,['/api/browser/csrf']);
+for(const mismatch of [{contextRevision:'7',familyRevision:'7'},{contextRevision:'9',familyRevision:'9'},{familyId:'8b7cbd5c-1059-41d8-9494-37b1bc457b02'},{contextRevision:'7',familyRevision:'8',transitionState:'PENDING',pendingKind:'LOGIN',authenticated:false,currentContext:false},{contextKind:'PREAUTH',authenticated:false},{pendingKind:'LOGOUT',transitionState:'PENDING',authenticated:false},{reauthenticationRequired:true,authenticated:false},{currentContext:false}])test(`recovery fails closed for uncorrelated context ${JSON.stringify(mismatch.pendingKind==='LOGOUT'?{pendingKind:'LOGOUT',transitionState:'PENDING'}:mismatch)}`,async()=>{
+ const calls=[];const f=fixture(async url=>{calls.push(url);return response(next(mismatch));});hold(f);await assert.rejects(f.session.browserRecovery(),fresh);assert.equal(f.env.storage.getItem(MARKER),marker());assert.deepEqual(calls,['/api/browser/csrf']);
 });
 for(const old of [JSON.stringify({kind:'LOGIN',revision:'1'}),marker({kind:'BOOTSTRAP'}),marker({preServerRevision:'9223372036854775808'}),'{broken'])test('old or unbound markers are never guessed or upgraded',async()=>{
- let calls=0;const f=fixture(async()=>{calls++;return response(next());});hold(f);f.env.storage.setItem(MARKER,old);await assert.rejects(f.session.browserRecovery(),uncertain);assert.equal(f.env.storage.getItem(MARKER),old);assert.equal(calls,0);
+ let calls=0;const f=fixture(async()=>{calls++;return response(next());});hold(f);f.env.storage.setItem(MARKER,old);await assert.rejects(f.session.browserRecovery(),fresh);assert.equal(f.env.storage.getItem(MARKER),old);assert.equal(calls,0);
 });
 test('recovery checks context again after me and retains marker if raw family changes',async()=>{
  let reads=0;const f=fixture(async url=>url.endsWith('/me')?response(user):response(next(++reads>1?{familyId:'8b7cbd5c-1059-41d8-9494-37b1bc457b02'}:{})));hold(f);await assert.rejects(f.session.browserRecovery(),uncertain);assert.equal(f.env.storage.getItem(MARKER),marker());
@@ -87,7 +88,7 @@ test('denial cannot remove marker if previous-account me is no longer authoritat
 });
 
 test('lost or expired current cookie cannot bootstrap during explicit recovery',async()=>{
- const calls=[];const f=fixture(async url=>{calls.push(url);return response({message:'Unauthorized'},401);});hold(f);await assert.rejects(f.session.browserRecovery(),uncertain);assert.equal(f.env.storage.getItem(MARKER),marker());assert.deepEqual(calls,['/api/browser/csrf']);
+ const calls=[];const f=fixture(async url=>{calls.push(url);return response({message:'Unauthorized'},401);});hold(f);await assert.rejects(f.session.browserRecovery(),fresh);assert.equal(f.env.storage.getItem(MARKER),marker());assert.deepEqual(calls,['/api/browser/csrf']);
 });
 test('expired current PREAUTH requires explicit logout and ACK before a credential login',async()=>{
  let current=proof({reauthenticationRequired:true}),writes=[];
@@ -286,4 +287,16 @@ test('unwritable storage fails closed inside the lock before any proof or writer
  let calls=0,inside=false,writeInside;
  const f=fixture(async()=>{calls++;return response(proof());},{storage:{getItem:()=>null,setItem:()=>{writeInside=inside;throw Error('write unavailable');},removeItem:()=>{}},locks:{request:async(_n,_o,fn)=>{inside=true;try{return await fn();}finally{inside=false;}}}});
  await assert.rejects(f.session.browserLogin('a','pw'),e=>e.code==='COOKIE_UNSUPPORTED');assert.equal(writeInside,true);assert.equal(calls,0);
+});
+
+test('transient status network failure stays retryable without weakening the original fence',async()=>{
+ let online=false;const f=fixture(async url=>{if(!online)throw Error('offline');return url.endsWith('/me')?response(user):response(next());});hold(f);
+ await assert.rejects(f.session.browserRecovery(),uncertain);assert.equal(f.env.storage.getItem(MARKER),marker());
+ online=true;assert.deepEqual(await f.session.browserRecovery(),user);assert.equal(f.env.storage.getItem(MARKER),null);
+});
+test('fresh-context requirement never bootstraps or releases an old revision and can still accept later exact N+1 proof',async()=>{
+ let delivered=false;const calls=[];const f=fixture(async url=>{calls.push(url);return url.endsWith('/me')?response(user):response(delivered?next():proof());});hold(f);
+ await assert.rejects(f.session.browserRecovery(),fresh);assert.equal(f.env.storage.getItem(MARKER),marker());
+ await assert.rejects(f.session.browserLogin('a','pw'),uncertain);assert.deepEqual(calls,['/api/browser/csrf']);
+ delivered=true;assert.deepEqual(await f.session.browserRecovery(),user);assert.equal(f.env.storage.getItem(MARKER),null);
 });

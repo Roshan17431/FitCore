@@ -74,14 +74,29 @@ const BearerAuthProvider = ({ children, initialInvitation = null, initialSecurit
 };
 
 // Cookie identity stays in React memory and always comes from a fresh authoritative me.
-const CookieAuthProvider = ({ children }) => {
+const CookieAuthProvider = ({ children, initialInvitation = null, initialSecurity = null }) => {
   const [user, setUser] = useState(null), [loading, setLoading] = useState(true), [sessionError, setSessionError] = useState('');
   const [sessionRevision, setSessionRevision] = useState(0);
+  const [invitationToken, setInvitationToken] = useState(initialInvitation), [securityToken, setSecurityToken] = useState(initialSecurity);
+  const clearInvitation = useCallback(() => setInvitationToken(null), []);
+  const clearSecurity = useCallback(() => setSecurityToken(null), []);
+  const captureIncomingInvitation = useCallback(() => {
+    if (['/register', '/secure/register'].includes(window.location.pathname) && window.location.hash) setInvitationToken(captureInvitation());
+  }, []);
+  const captureIncomingSecurity = useCallback(() => {
+    if (window.location.hash) { const incoming = captureSecurityToken(); if (incoming) setSecurityToken(incoming); }
+  }, []);
+  const [sessionFreshContextRequired, setSessionFreshContextRequired] = useState(false);
+  useEffect(() => {
+    window.addEventListener('hashchange', captureIncomingInvitation); window.addEventListener('hashchange', captureIncomingSecurity);
+    return () => { window.removeEventListener('hashchange', captureIncomingInvitation); window.removeEventListener('hashchange', captureIncomingSecurity); };
+  }, [captureIncomingInvitation, captureIncomingSecurity]);
   const [sessionRecoveryAvailable, setSessionRecoveryAvailable] = useState(false), [sessionSignOutRequired, setSessionSignOutRequired] = useState(false);
   const recordError = useCallback(error => {
     setSessionError(formatApiError(error, 'Unable to confirm this session.'));
     setSessionRecoveryAvailable(error.code === 'COOKIE_UNCERTAIN' || error.code === 'COOKIE_LOCK_TIMEOUT');
     setSessionSignOutRequired(error.code === 'COOKIE_REAUTH_REQUIRED');
+    setSessionFreshContextRequired(error.code === 'COOKIE_FRESH_CONTEXT_REQUIRED');
   }, []);
   const generation = useRef(0), localWriters = useRef(0), displayedUser = useRef(null);
   displayedUser.current = user;
@@ -95,7 +110,7 @@ const CookieAuthProvider = ({ children }) => {
       const current = await authService.me();
       if (version !== generation.current) return;
       if (current) clearForeignTrainingState(current);
-      setUser(current); setSessionError(''); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
+      setUser(current); setSessionError(''); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); setSessionFreshContextRequired(false);
     } catch (error) {
       if (version === generation.current) recordError(error);
     } finally { if (version === generation.current) setLoading(false); }
@@ -128,7 +143,7 @@ const CookieAuthProvider = ({ children }) => {
     invalidate(); setLoading(false); setSessionError('');
     try {
       await authService.logout();
-      if (version === generation.current) { setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); }
+      if (version === generation.current) { setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); setSessionFreshContextRequired(false); }
     }
     catch (error) { if (version === generation.current) recordError(error); }
     finally { localWriters.current--; }
@@ -141,7 +156,7 @@ const CookieAuthProvider = ({ children }) => {
       const current = await authService.browserRecovery();
       if (version !== generation.current) return {success:false,error:'Session changed. Check sign-in status again.'};
       if (current) clearForeignTrainingState(current);
-      setUser(current); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
+      setUser(current); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); setSessionFreshContextRequired(false);
       return {success:true,user:current};
     } catch (error) {
       if (version === generation.current) recordError(error);
@@ -155,7 +170,7 @@ const CookieAuthProvider = ({ children }) => {
     try {
       const current = await authService.login(email, password);
       if (version !== generation.current) return {success:false,error:'Session changed. Sign in again.'};
-      clearForeignTrainingState(current); setUser(current); setLoading(false); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false);
+      clearForeignTrainingState(current); setUser(current); setLoading(false); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); setSessionFreshContextRequired(false);
       return {success:true,user:current};
     } catch (error) {
       if (version === generation.current) {
@@ -165,16 +180,39 @@ const CookieAuthProvider = ({ children }) => {
       return {success:false,error:formatApiError(error)};
     } finally { localWriters.current--; }
   };
-  const unavailable = async () => ({success:false,error:'Registration, verification and recovery are unavailable in this cookie test environment.'});
+  const accountRequest = async request => {
+    const version = generation.current;
+    localWriters.current++;
+    try {
+      await request();
+      if (version !== generation.current) throw Object.assign(new Error('Session changed. Please try again.'), {code:'ERR_CANCELED'});
+      setSessionError(''); setSessionRecoveryAvailable(false); setSessionSignOutRequired(false); setSessionFreshContextRequired(false);
+    } catch (error) { if (version === generation.current) recordError(error); throw error; }
+    finally { localWriters.current--; }
+  };
+  const pendingOwner = input => accountRequest(() => authService.pendingOwner(input));
+  const pendingInvite = input => accountRequest(() => authService.pendingInvite(input));
+  const pendingResult = async request => {
+    try { await request(); return {success:true,pending:true}; }
+    catch (error) { return {success:false,error:formatApiError(error)}; }
+  };
   const value = {
-    user, loading, sessionError, sessionRevision, cookieTransport:true, sessionRecoveryAvailable, sessionSignOutRequired, recoverSession,
-    invitationToken:null, securityToken:null,
-    clearInvitation:() => {}, captureIncomingInvitation:() => {}, clearSecurity:() => {}, captureIncomingSecurity:() => {},
-    login, logout, refresh:restore, register:unavailable, registerOwner:unavailable, resetPassword:unavailable,
-    // Receipts never authenticate or write browser cookies. These endpoints are
-    // disabled in this spike; no token-bearing legacy path is reachable here.
-    verifyEmail:async (email, token) => { try { await authService.verifyEmail({email,token}); return {success:true,verified:true}; } catch (error) { return {success:false,error:formatApiError(error)}; } },
-    completeReset:input => authService.completeReset(input),
+    user, loading, sessionError, sessionRevision, cookieTransport:true, sessionRecoveryAvailable, sessionSignOutRequired, sessionFreshContextRequired, recoverSession,
+    invitationToken, securityToken, clearInvitation, clearSecurity, captureIncomingInvitation, captureIncomingSecurity,
+    login, logout, refresh:restore, pendingOwner, pendingInvite,
+    register:input => pendingResult(() => pendingInvite(input)),
+    registerOwner:input => pendingResult(() => pendingOwner(input)),
+    requestVerification:email => accountRequest(() => authService.requestVerification(email)),
+    resetPassword:async email => {
+      try { await accountRequest(() => authService.resetPassword(email)); return {success:true}; }
+      catch (error) { return {success:false,error:formatApiError(error)}; }
+    },
+    // Empty receipts never install identity, call me, or log in implicitly.
+    verifyEmail:async (email, token) => {
+      try { await accountRequest(() => authService.verifyEmail({email,token})); return {success:true,verified:true}; }
+      catch (error) { return {success:false,error:formatApiError(error)}; }
+    },
+    completeReset:input => accountRequest(() => authService.completeReset(input)),
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

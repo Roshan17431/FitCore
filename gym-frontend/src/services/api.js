@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { approvedExerciseImage } from '../utils/catalog';
-import { cookieMode, cookieApiRequest, browserLogin, browserLogout, browserMe, browserRecovery } from './browser-session.js';
+import { cookieMode, cookieApiRequest, cookieAccountRequest, browserLogin, browserLogout, browserMe, browserRecovery } from './browser-session.js';
 
 const normalizeBackendBaseURL = (value = '') => {
   const trimmedUrl = value.trim().replace(/\/+$/, '');
@@ -230,12 +230,17 @@ const buildWorkoutCompletion = (logs = []) => {
   });
 };
 
+// This adapter is deliberately separate from authenticated tenant requests.
+const accountPost = (path, data) => cookieMode
+  ? cookieAccountRequest({url:`/browser/${path}`,method:'POST',data}).then(unwrap)
+  : api.post(`/auth/${path}`,data).then(unwrap);
+
 export const authService = {
-  pendingOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/registration/owner', { fullName, email, password, gymName, slug }).then(unwrap),
-  pendingInvite: ({ fullName, email, password, invitationToken }) => api.post('/auth/registration/invitation', { fullName, email, password, invitationToken }).then(unwrap),
-  requestVerification: email => api.post('/auth/verification/request', { email }).then(unwrap),
-  verifyEmail: ({ email, token }) => api.post('/auth/verify-email', { email, token }).then(unwrap),
-  completeReset: ({ email, token, password }) => api.post('/auth/reset-password', { email, token, password }).then(unwrap),
+  pendingOwner: ({ fullName, email, password, gymName, slug }) => accountPost('registration/owner', { fullName, email, password, gymName, slug }),
+  pendingInvite: ({ fullName, email, password, invitationToken }) => accountPost('registration/invitation', { fullName, email, password, invitationToken }),
+  requestVerification: email => accountPost('verification/request', { email }),
+  verifyEmail: ({ email, token }) => accountPost('verify-email', { email, token }),
+  completeReset: ({ email, token, password }) => accountPost('reset-password', { email, token, password }),
   login: (email, password) => cookieMode ? browserLogin(email, password) : api.post('/auth/login', { email, password }).then(unwrap),
   logout: () => cookieMode ? browserLogout() : Promise.resolve(),
   browserRecovery: () => cookieMode ? browserRecovery() : Promise.reject(new Error('Cookie sessions are unavailable.')),
@@ -243,7 +248,7 @@ export const authService = {
     api.post('/auth/register', { fullName, email, password, fitnessGoal, invitationToken }).then(unwrap),
   registerOwner: ({ fullName, email, password, gymName, slug }) => api.post('/auth/register-owner', { fullName, email, password, gymName, slug }).then(unwrap),
   me: () => cookieMode ? browserMe() : api.get('/auth/me').then(unwrap),
-  resetPassword: (email) => api.post('/auth/forgot-password', { email }).then(unwrap),
+  resetPassword: (email) => accountPost('forgot-password', { email }),
 };
 
 export const dashboardService = {
@@ -407,7 +412,11 @@ export const gymService = {
   get: () => api.get('/gym').then(unwrap),
   update: ({ name }) => api.patch('/gym', { name }).then(unwrap),
   invitations: () => api.get('/gym/invitations').then(unwrap),
-  invite: ({ email, role }) => api.post('/gym/invitations', { email, role }).then(unwrap),
+  invite: ({ email, role }) => api.post('/gym/invitations', { email, role }).then(unwrap).then(issued => {
+    if (!cookieMode) return issued;
+    if (!issued?.id || !['MEMBER','TRAINER'].includes(issued.role) || !issued.expiresAt || issued.deliveryStatus !== 'QUEUED') throw new Error('Unable to confirm invitation queue receipt.');
+    return {id:issued.id,role:issued.role,expiresAt:issued.expiresAt,deliveryStatus:'QUEUED'};
+  }),
   revoke: (id) => api.delete(`/gym/invitations/${encodeURIComponent(id)}`).then(unwrap),
 };
 

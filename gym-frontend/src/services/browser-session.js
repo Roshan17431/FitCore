@@ -8,6 +8,7 @@ const uncertainMessage = 'Cookie delivery is uncertain. Check sign-in status bef
 const failure = (code, message) => Object.assign(new Error(message), { code });
 const unsupported = () => failure('COOKIE_UNSUPPORTED', 'This browser needs Web Locks and persistent storage for cookie sessions.');
 const uncertain = () => failure('COOKIE_UNCERTAIN', uncertainMessage);
+const freshContext = () => failure('COOKIE_FRESH_CONTEXT_REQUIRED', 'This browser cannot prove the interrupted session. Continue in a separate browser profile or a freshly isolated private session. This original context remains blocked.');
 
 export function createCookieSession(env) {
   const listeners = new Set();
@@ -227,14 +228,25 @@ export function createCookieSession(env) {
         if (env.storage.getItem(MARKER) !== observed) throw uncertain();
         if (!observed) return confirm(await context(false));
         let marker;
-        try { marker = JSON.parse(observed); } catch { throw uncertain(); }
-        if (!['LOGIN','LOGOUT'].includes(marker.kind) || !/^[0-9a-f-]{36}$/i.test(marker.preFamilyId || '')) throw uncertain();
-        canonicalRevision(marker.revision); canonicalRevision(marker.preServerRevision); owns(observed);
+        try { marker = JSON.parse(observed); } catch { throw freshContext(); }
+        if (!marker || !['LOGIN','LOGOUT'].includes(marker.kind) || !/^[0-9a-f-]{36}$/i.test(marker.preFamilyId || '')) throw freshContext();
+        try { canonicalRevision(marker.revision); canonicalRevision(marker.preServerRevision); }
+        catch { throw freshContext(); }
+        owns(observed);
         const pre = {familyId:marker.preFamilyId,contextRevision:marker.preServerRevision};
-        const user = await settle(await readContext(),pre,marker.kind,observed);
+        let current;
+        try { current = await readContext(); }
+        catch (error) { if (error.response?.status === 401) throw freshContext(); throw error; }
+        owns(observed);
+        // Only an exact received N+1 can finish the interrupted transition.
+        // A complete incompatible proof is definitive; transport failure is not.
+        try { expectedNext(current,pre,marker.kind); }
+        catch { throw freshContext(); }
+        const user = await settle(current,pre,marker.kind,observed);
         clearOwned(observed); return user;
       } catch (error) {
         identity = undefined;
+        if (error.code === 'COOKIE_FRESH_CONTEXT_REQUIRED') throw error;
         if (!observed && error.code === 'COOKIE_REAUTH_REQUIRED') throw error;
         notify('UNCERTAIN'); throw uncertain();
       }
@@ -245,10 +257,51 @@ export function createCookieSession(env) {
     browserLogin: (email,password) => transition('LOGIN',{email,password}),
     browserLogout: () => transition('LOGOUT'),
     browserMe: () => lock(async () => confirm(await context())),
+    cookieAccountRequest: async config => {
+      const receipts = new Map([
+        ['/browser/registration/owner',202], ['/browser/registration/invitation',202],
+        ['/browser/verification/request',202], ['/browser/verify-email',204],
+        ['/browser/forgot-password',202], ['/browser/reset-password',204],
+      ]);
+      const expectedStatus = receipts.get(config.url);
+      if (!expectedStatus || String(config.method).toUpperCase() !== 'POST' || config.params) {
+        throw failure('COOKIE_ROUTE_DISABLED', 'This account request is unavailable.');
+      }
+      capable(); blocked();
+      const originRevision = revision();
+      const assertOrigin = () => {
+        blocked();
+        if (originRevision !== revision()) throw failure('ERR_CANCELED', 'Session changed.');
+      };
+      return lock(async () => {
+        assertOrigin();
+        let current;
+        try { current = await context(false); }
+        catch { throw uncertain(); }
+        assertOrigin();
+        if (current.contextKind !== 'PREAUTH' || current.authenticated || current.reauthenticationRequired) {
+          throw failure('COOKIE_REAUTH_REQUIRED', 'Sign out the previous session before continuing with this account request.');
+        }
+        let result, denied;
+        try { result = await send(`/api${config.url}`, {method:'POST',data:config.data,csrf:current.csrfToken}); }
+        catch (error) { if (!error.response) throw uncertain(); denied = error; }
+        // Receipts cannot rotate the context. Even a denial must prove that it
+        // still belongs to the same live PREAUTH before the UI accepts it.
+        let after;
+        try { after = assertIdle(await readContext()); }
+        catch { throw uncertain(); }
+        assertOrigin();
+        if (binding(after) !== binding(current)) throw uncertain();
+        if (denied?.response?.headers?.get?.('set-cookie')) throw uncertain();
+        if (denied) throw denied;
+        if (result.status !== expectedStatus || result.data !== '' || result.headers?.get?.('set-cookie')) throw uncertain();
+        return {...result, config};
+      });
+    },
     cookieApiRequest: async config => {
       const path = config.url;
       if (typeof path !== 'string' || !/^\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+$/.test(path.split('?')[0]) || path.includes('\\') || /[\r\n#]/.test(path) || path.startsWith('/browser/') || (path.startsWith('/auth/') && path !== '/auth/me')) {
-        throw failure('COOKIE_ROUTE_DISABLED', 'Registration, verification and recovery are unavailable in this cookie test environment.');
+        throw failure('COOKIE_ROUTE_DISABLED', 'This legacy account route is unavailable for cookie sessions.');
       }
       // Bind old-view work before joining the lock queue. A later login/restore
       // may complete while this call waits; it cannot adopt that new identity.
@@ -329,6 +382,7 @@ const session = () => {
   return singleton;
 };
 export const cookieApiRequest = config => session().cookieApiRequest(config);
+export const cookieAccountRequest = config => session().cookieAccountRequest(config);
 export const browserLogin = (email,password) => session().browserLogin(email,password);
 export const browserLogout = () => session().browserLogout();
 export const browserMe = () => session().browserMe();
