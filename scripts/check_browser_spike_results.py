@@ -6,6 +6,17 @@ import pathlib
 import sys
 import xml.etree.ElementTree as ET
 NODE_REQUIRED={
+ 'account service methods use only frozen receipt routes without legacy auth fallback',
+ 'cookie invitation service returns only queued receipt metadata even if a response contains an unexpected secret',
+ 'fresh-context guidance is accessible, conservative and disables original sign-in',
+ 'cookie account forms explain explicit signout instead of submitting an AUTH source',
+ 'cookie provider retains invitation and security fragments in React memory and exposes receipt methods',
+ 'cookie invitation receipt shows queue intent with safe metadata and no secret controls',
+ 'transient status network failure stays retryable without weakening the original fence',
+ 'fresh-context requirement never bootstraps or releases an old revision and can still accept later exact N+1 proof',
+ 'cookie-bearing account denial cannot be accepted as a controlled receipt denial',
+ 'ordinary tenant adapter continues to deny receipt routes',
+ 'tokenless account receipts cannot forward any unexpected Set-Cookie',
  'unwritable storage fails closed inside the lock before any proof or writer request',
  'native restart rejects 503 with still present AUTH',
  'native restart rejects other family',
@@ -29,7 +40,7 @@ BROWSER_REQUIRED={
  'gym-1-all-role-isolation','gym-1-membership-rules','gym-1-booking-conflict','gym-1-catalog-history','gym-2-all-role-isolation','gym-2-membership-rules','gym-2-booking-conflict','gym-2-catalog-history',
  'foreground-session-revalidation','persisted-pageshow-revalidation','pending-blocks-business','pending-blocks-second-login','pending-blocks-logout','two-tab-gym-change','logout-pending-blocks-login','logout-expires-auth-cookie','logout-no-old-session','refresh-back-session-restore','live-web-lock-serialization','queued-old-view-write-blocked','tab-close-uncertainty','timeout-uncertainty','no-uncaught-errors',
 }
-SHARED_REQUIRED={'shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed','shared-login-abuse-budget','shared-login-abuse-no-cookie'}
+SHARED_REQUIRED={'shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed','shared-login-abuse-budget','shared-login-abuse-no-cookie','shared-tokenless-owner-activation','shared-reset-session-revocation','shared-onboarding-abuse-budget','shared-onboarding-no-cookie'}
 def check(node_file,browser_file,shared_file):
     xml=ET.parse(node_file).getroot()
     cases=xml.findall('.//testcase')

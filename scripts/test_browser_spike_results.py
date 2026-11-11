@@ -15,10 +15,11 @@ class BrowserGateTest(unittest.TestCase):
             baseline=names.copy()
             names += ['a pre-lock storage capability read cannot overwrite another client next-revision marker and strand recovery', 'controlled gym denial with changed proof remains held without confirming identity', 'recovery fails closed for uncorrelated context {"contextRevision":"7","familyRevision":"7"}', 'recovery fails closed for uncorrelated context {"familyId":"8b7cbd5c-1059-41d8-9494-37b1bc457b02"}', 'received-cookie recovery preserves a replacement marker during post-ACK status validation', 'queued lock is aborted within its bound and a late grant never runs protected work', 'expired or revoked current AUTH requires explicit logout and ACK before fresh credentials']
             names += ['unwritable storage fails closed inside the lock before any proof or writer request', 'native restart rejects 503 with still present AUTH', 'native restart rejects other family', 'test hold-before gate forwards no request until its exact held request is released']
+            names += ['account service methods use only frozen receipt routes without legacy auth fallback', 'cookie invitation service returns only queued receipt metadata even if a response contains an unexpected secret', 'fresh-context guidance is accessible, conservative and disables original sign-in', 'cookie account forms explain explicit signout instead of submitting an AUTH source', 'cookie provider retains invitation and security fragments in React memory and exposes receipt methods', 'cookie invitation receipt shows queue intent with safe metadata and no secret controls', 'transient status network failure stays retryable without weakening the original fence', 'fresh-context requirement never bootstraps or releases an old revision and can still accept later exact N+1 proof', 'cookie-bearing account denial cannot be accepted as a controlled receipt denial', 'ordinary tenant adapter continues to deny receipt routes', 'tokenless account receipts cannot forward any unexpected Set-Cookie']
             if change and change.startswith('missing-critical-'):names.pop(int(change.removeprefix('missing-critical-')))
             if change=='baseline-only':names=baseline
             report={'suite':'fitcore-browser-spike-v1','passed':len(CASES),'checks':CASES.copy(),'failures':[],'webLocks':True,'production':'BLOCKED'}
-            shared={'passed':8,'checks':['shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed','shared-login-abuse-budget','shared-login-abuse-no-cookie'],'failures':[]}
+            shared={'passed':12,'checks':['shared-pending-fence','shared-session-ack-authority','shared-logout-retirement','shared-gateway-replay','shared-concurrent-login','raw-cookie-parser-fail-closed','shared-login-abuse-budget','shared-login-abuse-no-cookie','shared-tokenless-owner-activation','shared-reset-session-revocation','shared-onboarding-abuse-budget','shared-onboarding-no-cookie'],'failures':[]}
             if change in ['missing-foreground','missing-pageshow']:
                 report['checks'].remove('foreground-session-revalidation' if change=='missing-foreground' else 'persisted-pageshow-revalidation');report['passed']-=1
             if change=='missing-shared':shared['checks'].pop();shared['passed']-=1
@@ -39,7 +40,7 @@ class BrowserGateTest(unittest.TestCase):
         self.assertEqual(self.run_check(encoding='node22').returncode,0)
     def test_each_exact_critical_name_is_required_in_both_xml_formats(self):
         for encoding in ['raw','node22']:
-            for index in range(15):
+            for index in range(26):
                 with self.subTest(encoding=encoding,index=index):
                     self.assertNotEqual(self.run_check(f'missing-critical-{index}',encoding).returncode,0)
             with self.subTest(encoding=encoding,baseline_only=True):

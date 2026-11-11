@@ -11,6 +11,8 @@ GYM_CASES=['owner-cookie-login','owner-plan-create','owner-exercise-create','own
 GYM=[f'gym-{g}.{c}' for g in [1,2] for c in GYM_CASES]+['cookie-ui.cross-gym-persisted-catalog-isolation','cookie-ui.same-origin-no-bearer-no-runtime-errors']
 POLICY=[f'gym-{g}.{c}' for g in [1,2] for c in ['expired-current-explicit-logout-reauthentication','password-change-explicit-logout-reauthentication','role-revocation-explicit-logout-reauthentication','disabled-account-explicit-logout-denied']]
 RECOVERY += [f'gym-{g}-{c}' for g in [1,2] for c in ['same-revision-pre-mutation-remains-held','raw-different-family-recovery-remains-held']]
+RECOVERY += ['fresh-context-accessible-instructions','fresh-isolated-context-does-not-repair-original']
+ONBOARDING=[f'onboarding-gym-{g}.{c}' for g in [1,2] for c in ['owner-signup-pending','wrong-email-verification-denied','verification-replay-denied','reset-replay-denied','unverified-login-denied','owner-verification-without-login','owner-explicit-login','catalog-and-plan-creation','member-trainer-invitation-receipts','member-accept-verify-login','trainer-accept-verify-login','owner-manages-own-member','email-change-reverification','member-membership-and-booking','trainer-and-member-manager-denial','reset-revokes-prior-session','logout-and-explicit-relogin']]+['onboarding.two-new-gyms-cross-reference-isolation','onboarding.no-browser-secrets-or-external-delivery']
 RESTART=['native-browser-restart-retains-fence','native-browser-restart-bound-proof-policy']
 def report(suite,checks):return dict(suite=suite,passed=len(checks),checks=checks.copy(),failures=[],production='BLOCKED',browserType='chromium',browserVersion='1.2.3')
 class CookieCompletionGateTest(unittest.TestCase):
@@ -19,6 +21,7 @@ class CookieCompletionGateTest(unittest.TestCase):
         for e in recovery['engines']:e['report']['browserType']='chromium' if e['engine']=='chrome' else e['engine']
         gym=report('fitcore-cookie-gym-ui-v1',GYM);restart=report('fitcore-cookie-native-restart-v1',RESTART)
         policy=report('fitcore-cookie-policy-ui-v1',POLICY)
+        onboarding=report('fitcore-cookie-onboarding-v1',ONBOARDING)
         restart.update(receivedCookieProof=False,restartPolicyOutcome='missing-cookie',cookiePresence={'auth':False,'preauth':False},boundCandidate=False)
         if change=='copied-chrome':recovery['engines'][1]['report']=copy.deepcopy(recovery['engines'][0]['report'])
         if change=='received-cookie':restart.update(receivedCookieProof=True,restartPolicyOutcome='received-cookie',cookiePresence={'auth':True,'preauth':True},boundCandidate=True)
@@ -29,6 +32,9 @@ class CookieCompletionGateTest(unittest.TestCase):
         if change=='empty-version':restart['browserVersion']=''
         if change=='wrong-native-engine':restart['browserType']='webkit'
         if change=='wrong-gym-engine':gym['browserType']='firefox'
+        if change=='missing-onboarding':onboarding['checks'].pop();onboarding['passed']-=1
+        if change=='wrong-onboarding-engine':onboarding['browserType']='firefox'
+        if change=='missing-fresh-guidance':recovery['engines'][0]['report']['checks'].remove('fresh-context-accessible-instructions');recovery['engines'][0]['report']['passed']-=1
         if change=='missing-policy':policy['checks'].pop();policy['passed']-=1
         if change=='missing-restart-cookie-evidence':restart.pop('cookiePresence')
         if change=='restart-outage':restart.update(receivedCookieProof=False,restartPolicyOutcome='unexpected-status',cookiePresence={'auth':True,'preauth':False})
@@ -44,13 +50,13 @@ class CookieCompletionGateTest(unittest.TestCase):
         if change=='production-ready':restart['production']='READY'
         with tempfile.TemporaryDirectory() as folder:
             paths=[]
-            for n,data in enumerate([recovery,gym,restart,policy]):
+            for n,data in enumerate([recovery,gym,restart,policy,onboarding]):
                 p=pathlib.Path(folder,str(n)+'.json');p.write_text(json.dumps(data));paths.append(str(p))
             return subprocess.run(['python3',str(CHECKER),*paths],capture_output=True,text=True)
     def test_all_exact_evidence_passes(self):
         self.assertEqual(self.run_check().returncode,0)
         self.assertEqual(self.run_check('received-cookie').returncode,0)
     def test_incomplete_or_invalid_evidence_is_rejected(self):
-        for change in ['received-unbound','missing-with-cookie','missing-browser-type','empty-recovery-version','copied-chrome','empty-version','wrong-native-engine','wrong-gym-engine','missing-policy','missing-restart-cookie-evidence','restart-outage','missing-engine','duplicate-engine','missing-recovery','missing-gym','missing-restart','failure','bad-count','duplicate-case','unexpected-suite','production-ready']:
+        for change in ['missing-onboarding','wrong-onboarding-engine','missing-fresh-guidance','received-unbound','missing-with-cookie','missing-browser-type','empty-recovery-version','copied-chrome','empty-version','wrong-native-engine','wrong-gym-engine','missing-policy','missing-restart-cookie-evidence','restart-outage','missing-engine','duplicate-engine','missing-recovery','missing-gym','missing-restart','failure','bad-count','duplicate-case','unexpected-suite','production-ready']:
             with self.subTest(change=change):self.assertNotEqual(self.run_check(change).returncode,0)
 if __name__=='__main__':unittest.main()

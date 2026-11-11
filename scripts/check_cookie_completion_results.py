@@ -6,6 +6,8 @@ import sys
 
 RECOVERY={'gym-1-incorrect-password-retry','gym-1-explicit-login-after-denial','gym-2-incorrect-password-retry','gym-2-explicit-login-after-denial','tab-close-received-cookie-recovery','lost-ack-receipt-recovery','lost-logout-receipt-recovery','old-cookie-recovery-remains-held','missing-cookie-recovery-remains-held','controlled-rate-denial-explicit-retry'}
 RECOVERY|={f'gym-{g}-{c}' for g in [1,2] for c in ['same-revision-pre-mutation-remains-held','raw-different-family-recovery-remains-held']}
+RECOVERY|={'fresh-context-accessible-instructions','fresh-isolated-context-does-not-repair-original'}
+ONBOARDING={f'onboarding-gym-{g}.{c}' for g in [1,2] for c in ['owner-signup-pending','wrong-email-verification-denied','verification-replay-denied','reset-replay-denied','unverified-login-denied','owner-verification-without-login','owner-explicit-login','catalog-and-plan-creation','member-trainer-invitation-receipts','member-accept-verify-login','trainer-accept-verify-login','owner-manages-own-member','email-change-reverification','member-membership-and-booking','trainer-and-member-manager-denial','reset-revokes-prior-session','logout-and-explicit-relogin']}|{'onboarding.two-new-gyms-cross-reference-isolation','onboarding.no-browser-secrets-or-external-delivery'}
 POLICY={f'gym-{g}.{c}' for g in [1,2] for c in ['expired-current-explicit-logout-reauthentication','password-change-explicit-logout-reauthentication','role-revocation-explicit-logout-reauthentication','disabled-account-explicit-logout-denied']}
 GYM_CASES={'owner-cookie-login','owner-plan-create','owner-exercise-create','owner-workout-draft','admin-cookie-login','admin-plan-update','admin-exercise-update','admin-workout-update-publish','referenced-exercise-name-protection','published-exercise-archive-protection','nutrition-catalog-create-update','member-cookie-login','member-local-catalogs','member-subscribe','member-renew','member-upgrade','member-workout-log','member-nutrition-log','member-progress-weight-bmi','member-attendance','member-booking','member-booking-conflict','peer-cookie-login','peer-booking-conflict','member-manager-route-denial','trainer-current-policy','admin-current-policy','catalog-archive'}
 GYM={f'gym-{gym}.{case}' for gym in [1,2] for case in GYM_CASES}|{'cookie-ui.cross-gym-persisted-catalog-isolation','cookie-ui.same-origin-no-bearer-no-runtime-errors'}
@@ -25,7 +27,7 @@ def engine(report,expected):
         or not isinstance(report.get('browserVersion'),str) or not report['browserVersion'].strip()):
         raise ValueError('Actual browser engine/version does not match '+expected)
 
-def check(recovery_file,gym_file,restart_file,policy_file):
+def check(recovery_file,gym_file,restart_file,policy_file,onboarding_file):
     recovery=json.loads(pathlib.Path(recovery_file).read_text())
     engines=recovery.get('engines',[])
     if (not isinstance(engines,list) or len(engines)!=3 or any(not isinstance(e,dict) for e in engines)
@@ -37,6 +39,8 @@ def check(recovery_file,gym_file,restart_file,policy_file):
     gym_count=certify(gym,'fitcore-cookie-gym-ui-v1',GYM)
     policy=json.loads(pathlib.Path(policy_file).read_text());engine(policy,'chromium')
     policy_count=certify(policy,'fitcore-cookie-policy-ui-v1',POLICY)
+    onboarding=json.loads(pathlib.Path(onboarding_file).read_text());engine(onboarding,'chromium')
+    onboarding_count=certify(onboarding,'fitcore-cookie-onboarding-v1',ONBOARDING)
     restart=json.loads(pathlib.Path(restart_file).read_text());engine(restart,'chromium')
     restart_count=certify(restart,'fitcore-cookie-native-restart-v1',RESTART)
     cookies=restart.get('cookiePresence')
@@ -49,11 +53,11 @@ def check(recovery_file,gym_file,restart_file,policy_file):
             raise ValueError('Invalid bound restart candidate evidence')
     elif cookies['auth'] or cookies['preauth'] or restart.get('boundCandidate') is not False or restart.get('restartPolicyOutcome')!='missing-cookie':
         raise ValueError('Restart proof loss requires actually missing AUTH and PREAUTH cookies')
-    return dict(recovery_executions=recovery_count,gym_ui=gym_count,native_restart=restart_count,policy_ui=policy_count,production='BLOCKED')
+    return dict(recovery_executions=recovery_count,gym_ui=gym_count,native_restart=restart_count,policy_ui=policy_count,onboarding_ui=onboarding_count,production='BLOCKED')
 
 if __name__=='__main__':
     try:
-        if len(sys.argv)!=5:raise ValueError('Pass recovery, gym UI, native restart and policy UI JSON paths')
+        if len(sys.argv)!=6:raise ValueError('Pass recovery, gym UI, native restart policy UI and onboarding JSON paths')
         print(json.dumps(check(*sys.argv[1:]),sort_keys=True))
     except (ValueError,TypeError,OSError) as error:
         print(str(error),file=sys.stderr);sys.exit(1)
