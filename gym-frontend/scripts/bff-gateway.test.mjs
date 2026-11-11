@@ -120,7 +120,7 @@ test('forwards raw bytes and raw target with a verified request-bound RS256 proo
 const routes = [
   ['POST', '/api/browser/bootstrap'], ['GET', '/api/browser/csrf'], ['POST', '/api/browser/login'], ['POST', '/api/browser/logout'], ['POST', '/api/browser/ack'], ['GET', '/api/browser/state'],
   ['GET', '/api/auth/me'], ['GET', '/api/health'], ['GET', '/api/health/ready'],
-  ['POST', '/api/auth/registration/owner'], ['POST', '/api/auth/registration/invitation'], ['POST', '/api/auth/verification/request'], ['POST', '/api/auth/reset-password'], ['POST', '/api/auth/forgot-password'],
+  ['POST', '/api/browser/registration/owner'], ['POST', '/api/browser/registration/invitation'], ['POST', '/api/browser/verification/request'], ['POST', '/api/browser/verify-email'], ['POST', '/api/browser/reset-password'], ['POST', '/api/browser/forgot-password'],
   ['GET', '/api/users/11111111-2222-4333-8444-555555555555'], ['GET', '/api/dashboard/11111111-2222-4333-8444-555555555555'], ['GET', '/api/notifications/11111111-2222-4333-8444-555555555555'],
   ['GET', '/api/gym'], ['PATCH', '/api/gym'], ['GET', '/api/gym/invitations'], ['POST', '/api/gym/invitations'], ['DELETE', '/api/gym/invitations/11111111-2222-4333-8444-555555555555'],
   ['GET', '/api/trainers'], ['POST', '/api/trainers/book/11111111-2222-4333-8444-555555555555/2'], ['GET', '/api/trainers/sessions/11111111-2222-4333-8444-555555555555'],
@@ -143,7 +143,7 @@ test('allows all current non-JWT controller paths using only their actual HTTP m
 });
 test('rejects unknown routes, JWT producers, wrong methods, absolute targets and path ambiguity before upstream', async (t) => {
   const f = await fixture(t);
-  for (const [method, path] of [['POST', '/api/auth/login'], ['POST', '/api/auth/register'], ['POST', '/api/auth/register-owner'], ['POST', '/api/auth/verify-email'], ['GET', '/api/browser/logout'], ['PUT', '/api/browser/login'], ['HEAD', '/api/auth/me'], ['OPTIONS', '/api/auth/me'], ['GET', '/api/admin/secret'], ['GET', '/api/users/1'], ['DELETE', '/api/gym/invitations/1'], ['PUT', '/api/admin/users/1'], ['PUT', '/api/admin/users/11111111-2222-4333-8444-555555555555/role'], ['PUT', '/api/admin/users/11111111-2222-4333-8444-555555555555/status'], ['POST', '/api/gym/unknown'], ['GET', 'https://evil.test/api/auth/me'], ['GET', '//evil.test/api/auth/me'], ['GET', '/api/gym/../auth/me'], ['GET', '/api/auth/%6de'], ['GET', '/api/auth/me/'], ['GET', '/api//auth/me'], ['GET', '/api/auth/me#fragment'], ['GET', '/api/auth/me?x=%zz'], ['GET', '/api/auth/me?x=%0d%0aX-Foo:bad'], ['GET', '/']]) {
+  for (const [method, path] of [['POST', '/api/auth/registration/owner'], ['POST', '/api/auth/registration/invitation'], ['POST', '/api/auth/verification/request'], ['POST', '/api/auth/reset-password'], ['POST', '/api/auth/forgot-password'], ['GET', '/api/browser/verify-email'], ['PUT', '/api/browser/reset-password'], ['POST', '/api/auth/login'], ['POST', '/api/auth/register'], ['POST', '/api/auth/register-owner'], ['POST', '/api/auth/verify-email'], ['GET', '/api/browser/logout'], ['PUT', '/api/browser/login'], ['HEAD', '/api/auth/me'], ['OPTIONS', '/api/auth/me'], ['GET', '/api/admin/secret'], ['GET', '/api/users/1'], ['DELETE', '/api/gym/invitations/1'], ['PUT', '/api/admin/users/1'], ['PUT', '/api/admin/users/11111111-2222-4333-8444-555555555555/role'], ['PUT', '/api/admin/users/11111111-2222-4333-8444-555555555555/status'], ['POST', '/api/gym/unknown'], ['GET', 'https://evil.test/api/auth/me'], ['GET', '//evil.test/api/auth/me'], ['GET', '/api/gym/../auth/me'], ['GET', '/api/auth/%6de'], ['GET', '/api/auth/me/'], ['GET', '/api//auth/me'], ['GET', '/api/auth/me#fragment'], ['GET', '/api/auth/me?x=%zz'], ['GET', '/api/auth/me?x=%0d%0aX-Foo:bad'], ['GET', '/']]) {
     assert.ok([400, 404, 405].includes((await request(f, path, { method })).status), `${method} ${path}`);
   }
   assert.equal(f.requests.length, 0);
@@ -252,4 +252,12 @@ test('rejects upstream protocol upgrades immediately and destroys the upgraded c
   assert.equal(response.status, 502);
   assert.deepEqual(JSON.parse(response.body), { error: 'upstream_protocol_rejected' });
   assert.equal(f.requests.length, 1);
+});
+
+test('tokenless account receipts cannot forward any unexpected Set-Cookie', async (t) => {
+  const f = await fixture(t, { respond: (_req,res) => { res.statusCode=202;res.setHeader('Set-Cookie',preauth);res.end(); } });
+  for(const name of ['registration/owner','registration/invitation','verification/request','verify-email','forgot-password','reset-password']) {
+    const r=await request(f,`/api/browser/${name}`,{method:'POST',body:'{}',headers:{'content-type':'application/json'}});
+    assert.equal(r.status,502);assert.equal(r.headers['set-cookie'],undefined);
+  }
 });

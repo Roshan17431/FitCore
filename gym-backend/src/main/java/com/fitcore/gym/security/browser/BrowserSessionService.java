@@ -128,6 +128,13 @@ public class BrowserSessionService {
         }
         return state(c,authenticated,reauthenticationRequired);
     }
+    /** Serialize tokenless receipts with login/logout, without writing or rotating cookies. */
+    @Transactional
+    public void accountReceipt(Context before,Runnable action){
+        Context c=lock(before);requireIdle(c);
+        if(!"PREAUTH".equals(c.kind()))throw new Failure(409,"SIGN_OUT_REQUIRED");
+        action.run();
+    }
     @Transactional
     public Map<String,Object> bootstrap(HttpServletRequest request,HttpServletResponse response){
         if(cookie(request,AUTH)!=null || cookie(request,PREAUTH)!=null)throw new Failure(409,"BROWSER_CONTEXT_ALREADY_EXISTS");

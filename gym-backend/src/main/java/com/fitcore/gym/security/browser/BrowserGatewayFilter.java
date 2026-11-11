@@ -19,6 +19,7 @@ import java.util.*;
 
 /** Internal proof is method/target/body/cookie-bound, short-lived, and single-use across instances. */
 final class BrowserGatewayFilter extends OncePerRequestFilter {
+    static final Set<String> RECEIPTS=Set.of("/api/browser/registration/owner","/api/browser/registration/invitation","/api/browser/verification/request","/api/browser/verify-email","/api/browser/forgot-password","/api/browser/reset-password");
     private final BrowserSecurityMaintenance maintenance;
     private final SharedAbuseLimiter limiter;
     private final PublicKey publicKey;
@@ -64,7 +65,7 @@ final class BrowserGatewayFilter extends OncePerRequestFilter {
             try {
                 if(!maintenance.consumeNonce(BrowserSessionService.digest(c.getId()),now.plusSeconds(120)))
                     throw new BrowserSessionService.Failure(401,"GATEWAY_PROOF_REPLAYED");
-                if(Set.of("/api/browser/bootstrap","/api/browser/login").contains(request.getRequestURI())
+                if((Set.of("/api/browser/bootstrap","/api/browser/login").contains(request.getRequestURI()) || RECEIPTS.contains(request.getRequestURI()) || ("POST".equals(request.getMethod()) && "/api/gym/invitations".equals(request.getRequestURI())))
                     && !limiter.allow(request.getRequestURI(),(String)clientIp))
                     throw new BrowserSessionService.Failure(429,"RATE_LIMITED");
             }catch(DataAccessException | TransactionException unavailable){
@@ -73,7 +74,7 @@ final class BrowserGatewayFilter extends OncePerRequestFilter {
             if("/api/browser/bootstrap".equals(request.getRequestURI()) && (!"POST".equals(request.getMethod()) || !"1".equals(request.getHeader("X-FitCore-Bootstrap")) || !bootstrapJson(request.getContentType())))throw new BrowserSessionService.Failure(403,"BOOTSTRAP_ADMISSION_REQUIRED");
             if(request.getRequestURI().startsWith("/api/browser/")) {
                 String path=request.getRequestURI();
-                String required=Set.of("/api/browser/csrf","/api/browser/state").contains(path)?"GET":Set.of("/api/browser/bootstrap","/api/browser/login","/api/browser/logout","/api/browser/ack").contains(path)?"POST":null;
+                String required=Set.of("/api/browser/csrf","/api/browser/state").contains(path)?"GET":(Set.of("/api/browser/bootstrap","/api/browser/login","/api/browser/logout","/api/browser/ack").contains(path) || RECEIPTS.contains(path))?"POST":null;
                 if(required==null)throw new BrowserSessionService.Failure(404,"BROWSER_ROUTE_NOT_FOUND");
                 if(!required.equals(request.getMethod()))throw new BrowserSessionService.Failure(405,"BROWSER_METHOD_REJECTED");
             }

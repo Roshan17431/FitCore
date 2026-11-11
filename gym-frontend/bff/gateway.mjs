@@ -24,7 +24,7 @@ const ROUTES = [
   route('GET', '/api/browser/(?:csrf|state)'),
   route('POST', '/api/browser/(?:bootstrap|login|logout|ack)'),
   route('GET', '/api/auth/me'),
-  route('POST', '/api/auth/(?:registration/(?:owner|invitation)|verification/request|reset-password|forgot-password)'),
+  route('POST', '/api/browser/(?:registration/(?:owner|invitation)|verification/request|verify-email|reset-password|forgot-password)'),
   route('GET', '/api/health(?:/ready)?'),
   route('GET', `/api/(?:users|dashboard|notifications)/${UUID}`),
   route('GET', '/api/gym(?:/invitations)?'),

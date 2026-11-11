@@ -17,6 +17,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class GymController {
     private final OnboardingService onboarding;
+    @org.springframework.beans.factory.annotation.Value("${fitcore.browser.spike-enabled:false}") private boolean cookieMode;
+    @org.springframework.beans.factory.annotation.Value("${fitcore.security-flows.demo-enabled:false}") private boolean securityFlows;
+    @org.springframework.beans.factory.annotation.Value("${fitcore.email.outbox.enabled:false}") private boolean queued;
 
     @GetMapping
     public OnboardingService.GymView view() {
@@ -29,9 +32,12 @@ public class GymController {
     }
 
     @PostMapping("/invitations")
-    public ResponseEntity<OnboardingService.IssuedInvitation> invite(
+    public ResponseEntity<?> invite(
             @Valid @RequestBody InvitationRequest r) {
-        return ResponseEntity.status(201).body(onboarding.invite(r));
+        if(cookieMode && (!securityFlows || !queued))throw new com.fitcore.gym.exception.ForbiddenException("SECURITY_ONBOARDING_DISABLED");
+        var issued=onboarding.invite(r);
+        if(cookieMode)return ResponseEntity.status(201).body(Map.of("id",issued.id(),"role",issued.role(),"expiresAt",issued.expiresAt(),"deliveryStatus","QUEUED"));
+        return ResponseEntity.status(201).body(issued);
     }
 
     @GetMapping("/invitations")

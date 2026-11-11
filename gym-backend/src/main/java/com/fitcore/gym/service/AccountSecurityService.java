@@ -81,9 +81,13 @@ public class AccountSecurityService {
         User user=account.get();
         if(user.getGymId()==null || jdbc.queryForObject("select count(*) from gyms where id=? and status='ACTIVE'",Long.class,user.getGymId())!=1)return;
         issue(new Pending(reset?"RESET":"VERIFY",address,user.getId(),user.getGymId(),user.getAuthzVersion(),null,null,null,null,null,null));}
-    public AuthResponse verify(String address,String token){gate();return consume(address,token,null);}
+    public AuthResponse verify(String address,String token){gate();var created=consume(address,token,null);
+        // Legacy bearer mode alone signs a session after the account transaction commits.
+        return created==null?null:AuthResponse.builder().token(jwt.generateToken(created.user())).user(SessionUserDto.from(created.user(),created.gym())).build();}
+    /** Browser verification activates the account without minting or returning any session. */
+    public void verifyWithoutSession(String address,String token){gate();consume(address,token,null);}
     public void reset(String address,String token,String newPassword){gate();password(newPassword);consume(address,token,newPassword);}
-    private AuthResponse consume(String address,String token,String newPassword){
+    private OnboardingService.Created consume(String address,String token,String newPassword){
         if(token==null || !token.matches("[A-Za-z0-9_-]{43}"))throw invalid();
         String normalized=email(address);
         var created=tx.execute(status->{
@@ -112,8 +116,7 @@ public class AccountSecurityService {
             }
             return result;
         });
-        // Sign only after the entire challenge/account transaction has committed.
-        return created==null?null:AuthResponse.builder().token(jwt.generateToken(created.user())).user(SessionUserDto.from(created.user(),created.gym())).build();
+        return created;
     }
     private BadRequestException invalid(){return new BadRequestException("Invalid or unavailable security token");}
 }

@@ -23,6 +23,9 @@ class BrowserAdmissionTest {
     static final String PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n"+Base64.getMimeEncoder(64,new byte[]{10}).encodeToString(KEY.getPublic().getEncoded())+"\n-----END PUBLIC KEY-----";
     @DynamicPropertySource
     static void postgres(DynamicPropertyRegistry p) throws Exception {
+        configure(p,SCHEMA,RUNTIME);
+    }
+    static void configure(DynamicPropertyRegistry p,String SCHEMA,String RUNTIME) throws Exception {
         p.add("fitcore.browser.spike-enabled",()->"true");
         p.add("fitcore.browser.public-origin",()->ORIGIN);
         p.add("fitcore.browser.gateway-public-key",()->PUBLIC_KEY);
