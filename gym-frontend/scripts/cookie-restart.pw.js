@@ -33,7 +33,7 @@ async (page) => {
     await page.waitForURL(ui+'/owner');await page.getByRole('heading',{name:'Synthetic Gym 1',exact:true}).waitFor();
     assert(await page.evaluate(()=>!localStorage.getItem('fitcore:cookie-transition')),'proof reconciled');
   }else{
-    await page.getByRole('alert').filter({hasText:/uncertain/i}).waitFor();
+    await page.getByRole('alert').filter({hasText:/This original context remains blocked/i}).waitFor();
     assert(await page.evaluate(()=>!!localStorage.getItem('fitcore:cookie-transition')),'no proof stays held');
     assert(await page.getByRole('button',{name:'Login',exact:true}).isDisabled(),'unproven restart cannot login');
   }

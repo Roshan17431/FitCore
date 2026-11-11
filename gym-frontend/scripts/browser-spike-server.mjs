@@ -1,6 +1,6 @@
 // Local spike harness only: HTTPS SPA wrapper; configuration and synthetic keys stay outside Git.
 import https from 'node:https';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { dispatchFixtureRequest } from './fixture-request-gate.mjs';
 import { createBff } from '../bff/gateway.mjs';
@@ -19,6 +19,13 @@ const server=https.createServer({key:options.tlsKeyPem,cert:options.tlsCertPem,m
   if(req.url.startsWith('/__fixture/')) {
     if(req.headers['x-fitcore-fixture']!==options.fixtureControl || req.socket.remoteAddress!=='127.0.0.1'){res.writeHead(403).end();return;}
     const command=req.url.substring('/__fixture/'.length);
+    if(req.method==='GET' && command==='mailbox'){
+      // Test wrapper only, random control key + actual loopback; never mounted by app hosting.
+      res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');
+      const files=(await readdir(options.mailbox)).filter(name=>/^[0-9a-f-]{36}\.json$/.test(name));
+      const messages=await Promise.all(files.map(async name=>JSON.parse(await readFile(path.join(options.mailbox,name),'utf8'))));
+      res.end(JSON.stringify(messages));return;
+    }
     if(req.method==='GET' && command==='state'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify([...gates].map(([target,gate])=>({target,mode:gate.mode,waiting:gate.waiting.length}))));return;}
     if(req.method!=='POST'){res.writeHead(405).end();return;}
     let body='';for await(const chunk of req){body+=chunk;if(body.length>256){res.writeHead(413).end();return;}}

@@ -9,7 +9,7 @@ for port in 18443 18444 18445; do
 done
 artifact="$repo_dir/output/playwright/browser-spike"
 mkdir -p "$artifact"
-rm -f "$artifact/results.json" "$artifact/shared-instances.json" "$artifact/recovery-results.json" "$artifact/gym-ui-results.json" "$artifact/native-restart.json" "$artifact/policy-ui-results.json"
+rm -f "$artifact/results.json" "$artifact/shared-instances.json" "$artifact/recovery-results.json" "$artifact/gym-ui-results.json" "$artifact/native-restart.json" "$artifact/policy-ui-results.json" "$artifact/onboarding-results.json"
 runtime="$(mktemp -d "${TMPDIR:-/tmp}/fitcore-browser-spike.XXXXXX")"
 chmod 700 "$runtime"
 container_id=""; backend_pid=""; second_backend_pid=""; bff_pid=""; browser_started=false; restart_started=false; engine_started=false
@@ -51,17 +51,24 @@ FITCORE_TENANCY_TEST_TOKEN="$container_id" \
 java -cp "$repo_dir/gym-backend/target/test-classes:$repo_dir/gym-backend/target/classes:$(cat "$runtime/classpath")" com.fitcore.gym.tenancy.BrowserSpikeFixture >"$artifact/fixture.log" 2>&1
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=fitcore-local-spike -addext subjectAltName=IP:127.0.0.1 -addext basicConstraints=critical,CA:TRUE -keyout "$runtime/tls.key" -out "$runtime/tls.crt" >"$artifact/tls-creation.log" 2>&1
 openssl pkcs12 -export -in "$runtime/tls.crt" -inkey "$runtime/tls.key" -out "$runtime/tls.p12" -passout pass:synthetic-local-only >/dev/null 2>&1
+mkdir -m 700 "$runtime/mailbox"
+openssl rand -base64 32 > "$runtime/outbox.key"
+chmod 600 "$runtime/outbox.key"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$runtime/proof.key" >/dev/null 2>&1
 openssl pkey -in "$runtime/proof.key" -pubout -out "$runtime/proof.pub" >/dev/null 2>&1
 start_backend(){
  cd "$runtime"
- exec env -i PATH="$PATH" FITCORE_TENANCY_TEST_TOKEN="$container_id" java -jar "$repo_dir/gym-backend/target/gym-0.0.1-SNAPSHOT.jar" \
+ exec env -i PATH="$PATH" FITCORE_TENANCY_TEST_TOKEN="$container_id" \
+ FITCORE_POSTGRES_TEST_URL="jdbc:postgresql://127.0.0.1:$pgport/fitcore_phase2" FITCORE_POSTGRES_TEST_USERNAME=fitcore_phase2_test FITCORE_POSTGRES_TEST_PASSWORD=fitcore-disposable-phase2-only \
+ java -cp "$repo_dir/gym-backend/target/test-classes:$repo_dir/gym-backend/target/classes:$(cat "$runtime/classpath")" com.fitcore.gym.tenancy.BrowserSyntheticMailApplication \
  --server.address=127.0.0.1 --server.port="$1" --server.ssl.enabled=true --server.ssl.key-store="$runtime/tls.p12" --server.ssl.key-store-type=PKCS12 --server.ssl.key-store-password=synthetic-local-only \
- --spring.config.import= --spring.datasource.url="jdbc:postgresql://127.0.0.1:$pgport/fitcore_phase2" \
+ --spring.config.location="file:$repo_dir/gym-backend/target/classes/application.properties" --spring.config.import= --spring.datasource.url="jdbc:postgresql://127.0.0.1:$pgport/fitcore_phase2" \
  --spring.datasource.username=browser_spike_runtime --spring.datasource.password=synthetic-browser-runtime-only \
  --spring.flyway.enabled=false --spring.jpa.hibernate.ddl-auto=validate --spring.sql.init.mode=never --aws.s3.enabled=false \
  --jwt.secret=synthetic-spike-credential-version-only-key-not-for-production-2026 --fitcore.browser.spike-enabled=true \
- --fitcore.browser.public-origin=https://127.0.0.1:18444 --fitcore.browser.gateway-public-key="$(cat "$runtime/proof.pub")"
+ --fitcore.security-flows.demo-enabled=true --fitcore.email.outbox.enabled=true --fitcore.email.outbox.worker-enabled=true \
+ --fitcore.email.outbox.active-key=synthetic --fitcore.email.outbox.keys="synthetic=$(cat "$runtime/outbox.key")" --fitcore.fixture.mailbox="$runtime/mailbox" \
+ --fitcore.security.public-origin=https://127.0.0.1:18444 --fitcore.browser.public-origin=https://127.0.0.1:18444 --fitcore.browser.gateway-public-key="$(cat "$runtime/proof.pub")"
 }
 (start_backend 18443) >"$artifact/backend.log" 2>&1 &
 backend_pid=$!
@@ -85,7 +92,7 @@ node - "$repo_dir/gym-frontend/vite.config.js" "$runtime" <<'NODE'
 const fs=require('node:fs'),{pathToFileURL}=require('node:url');
 const [,,original,dir]=process.argv;
 fs.writeFileSync(`${dir}/vite.config.mjs`,`import base from ${JSON.stringify(pathToFileURL(original).href)};export default {...base,envDir:false};`);
-fs.writeFileSync(`${dir}/bff.json`,JSON.stringify({upstream:'https://127.0.0.1:18443',publicOrigin:'https://127.0.0.1:18444',privateKeyPem:fs.readFileSync(`${dir}/proof.key`,'utf8'),caPem:fs.readFileSync(`${dir}/tls.crt`,'utf8'),tlsKeyPem:fs.readFileSync(`${dir}/tls.key`,'utf8'),tlsCertPem:fs.readFileSync(`${dir}/tls.crt`,'utf8'),staticRoot:`${dir}/dist`,fixtureControl:require('node:crypto').randomBytes(32).toString('hex')}));
+fs.writeFileSync(`${dir}/bff.json`,JSON.stringify({upstream:'https://127.0.0.1:18443',publicOrigin:'https://127.0.0.1:18444',privateKeyPem:fs.readFileSync(`${dir}/proof.key`,'utf8'),caPem:fs.readFileSync(`${dir}/tls.crt`,'utf8'),tlsKeyPem:fs.readFileSync(`${dir}/tls.key`,'utf8'),tlsCertPem:fs.readFileSync(`${dir}/tls.crt`,'utf8'),staticRoot:`${dir}/dist`,mailbox:`${dir}/mailbox`,fixtureControl:require('node:crypto').randomBytes(32).toString('hex')}));
 fs.writeFileSync(`${dir}/playwright.json`,JSON.stringify({browser:{contextOptions:{ignoreHTTPSErrors:true}}}));
 NODE
 (
@@ -104,9 +111,14 @@ for ((attempt=0;attempt<30;attempt++));do
  if curl --noproxy '*' --cacert "$runtime/tls.crt" --silent --fail --max-time 2 https://127.0.0.1:18444/login >/dev/null;then break;fi
  sleep 1
 done
+# Playwright prints evaluated code; remove harness control keys and any link
+# fragments before persistent diagnostic output is written.
+run_code(){
+ playwright-cli "$@" 2>&1 | node -e 'const fs=require("node:fs"),c=JSON.parse(fs.readFileSync(process.argv[1]));process.stdout.write(fs.readFileSync(0,"utf8").replaceAll(c.fixtureControl,"[fixture-control-redacted]").replace(/(#(?:token|invitationToken)=)[A-Za-z0-9_-]{43}/g,"$1[redacted]"));' "$runtime/bff.json"
+}
 browser_started=true
 playwright-cli -s="$session" open https://127.0.0.1:18444/login --config "$runtime/playwright.json" >"$artifact/browser.log" 2>&1
-playwright-cli -s="$session" run-code --filename="$runtime/runner.js" >"$artifact/integrated.log" 2>&1 || { tail -40 "$artifact/integrated.log";exit 1; }
+run_code -s="$session" run-code --filename="$runtime/runner.js" >"$artifact/integrated.log" 2>&1 || { tail -40 "$artifact/integrated.log";exit 1; }
 # Results are structured and independently gated, not merely a successful browser command.
 node - "$artifact/integrated.log" "$artifact/results.json" <<'NODE'
 const fs=require('node:fs');const [,,input,output]=process.argv;const text=fs.readFileSync(input,'utf8');const match=text.match(/### Result\s*\n([\s\S]*?)(?=\n###|$)/);if(!match)throw Error('No structured browser result');const result=JSON.parse(match[1]);if(!result.checks?.length)throw Error('Empty browser checks');fs.writeFileSync(output,JSON.stringify(result,null,2));
@@ -134,7 +146,7 @@ for engine in chrome firefox webkit; do
  else
    playwright-cli -s="$engine_session" open https://127.0.0.1:18444/login --browser="$engine" --config "$runtime/playwright.json" >>"$artifact/engines.log" 2>&1
  fi
- playwright-cli -s="$engine_session" run-code --filename="$runtime/recovery.js" >"$artifact/recovery-$engine.log" 2>&1
+ run_code -s="$engine_session" run-code --filename="$runtime/recovery.js" >"$artifact/recovery-$engine.log" 2>&1
  record_json "$artifact/recovery-$engine.log" "$artifact/recovery-$engine.json"
  playwright-cli -s="$engine_session" close >>"$artifact/engines.log" 2>&1
  engine_started=false
@@ -144,8 +156,12 @@ const fs=require('node:fs');const dir=process.argv[2];fs.writeFileSync(`${dir}/r
 NODE
 docker exec "$container_id" psql -U fitcore_phase2_test -d fitcore_phase2 --set ON_ERROR_STOP=1 -c 'delete from security_rate_limits' >/dev/null
 prepare_runner gym-frontend/scripts/cookie-gym-ui.pw.js "$runtime/gym-ui.js"
-playwright-cli -s="$session" run-code --filename="$runtime/gym-ui.js" >"$artifact/gym-ui.log" 2>&1
+run_code -s="$session" run-code --filename="$runtime/gym-ui.js" >"$artifact/gym-ui.log" 2>&1
 record_json "$artifact/gym-ui.log" "$artifact/gym-ui-results.json"
+docker exec "$container_id" psql -U fitcore_phase2_test -d fitcore_phase2 --set ON_ERROR_STOP=1 -c 'delete from security_rate_limits' >/dev/null
+prepare_runner gym-frontend/scripts/cookie-onboarding.pw.js "$runtime/onboarding.js"
+run_code -s="$session" run-code --filename="$runtime/onboarding.js" >"$artifact/onboarding.log" 2>&1
+record_json "$artifact/onboarding.log" "$artifact/onboarding-results.json"
 # Current-account policy boundaries are staged by root-owned CLI only. No HTTP
 # fixture route can mutate the DB. Every mutation checks this created DB marker.
 policy_mutation(){
@@ -203,7 +219,7 @@ for gym in 1 2; do
   prepare_runner gym-frontend/scripts/cookie-policy-ui.pw.js "$runtime/policy-verify.js" "gym-$gym-$policy-verify"
   engine_started=true
   playwright-cli -s="$engine_session" open https://127.0.0.1:18444/login --browser=chrome --config "$runtime/playwright.json" >>"$artifact/engines.log" 2>&1
-  playwright-cli -s="$engine_session" run-code --filename="$runtime/policy-prepare.js" >"$artifact/policy-$gym-$policy-prepare.log" 2>&1
+  run_code -s="$engine_session" run-code --filename="$runtime/policy-prepare.js" >"$artifact/policy-$gym-$policy-prepare.log" 2>&1
   record_json "$artifact/policy-$gym-$policy-prepare.log" "$artifact/policy-$gym-$policy-prepare.json"
   node - "$artifact/policy-$gym-$policy-prepare.json" <<'NODE'
 const fs=require('node:fs');if(JSON.parse(fs.readFileSync(process.argv[2])).prepared!==true)throw Error('Policy UI preparation failed');
@@ -213,7 +229,7 @@ const fs=require('node:fs'),id=JSON.parse(fs.readFileSync(process.argv[2])).poli
 NODE
 )"
   policy_mutation "$policy" "$gym" "$policy_family" >"$artifact/policy-$gym-$policy-sql.log" 2>&1
-  playwright-cli -s="$engine_session" run-code --filename="$runtime/policy-verify.js" >"$artifact/policy-$gym-$policy.log" 2>&1
+  run_code -s="$engine_session" run-code --filename="$runtime/policy-verify.js" >"$artifact/policy-$gym-$policy.log" 2>&1
   record_json "$artifact/policy-$gym-$policy.log" "$artifact/policy-$gym-$policy.json"
   playwright-cli -s="$engine_session" close >>"$artifact/engines.log" 2>&1
   engine_started=false
@@ -231,15 +247,15 @@ prepare_runner gym-frontend/scripts/cookie-restart.pw.js "$runtime/restart-befor
 prepare_runner gym-frontend/scripts/cookie-restart.pw.js "$runtime/restart-after.js" after
 restart_started=true
 playwright-cli -s="$restart_session" open https://127.0.0.1:18444/login --profile "$runtime/browser-profile" --config "$runtime/playwright.json" >"$artifact/restart-browser.log" 2>&1
-playwright-cli -s="$restart_session" run-code --filename="$runtime/restart-before.js" >"$artifact/restart-before.log" 2>&1
+run_code -s="$restart_session" run-code --filename="$runtime/restart-before.js" >"$artifact/restart-before.log" 2>&1
 record_json "$artifact/restart-before.log" "$artifact/restart-before.json"
 playwright-cli -s="$restart_session" close >>"$artifact/restart-browser.log" 2>&1
 restart_started=false
 restart_started=true
 playwright-cli -s="$restart_session" open https://127.0.0.1:18444/login --profile "$runtime/browser-profile" --config "$runtime/playwright.json" >>"$artifact/restart-browser.log" 2>&1
-playwright-cli -s="$restart_session" run-code --filename="$runtime/restart-after.js" >"$artifact/restart-after.log" 2>&1
+run_code -s="$restart_session" run-code --filename="$runtime/restart-after.js" >"$artifact/restart-after.log" 2>&1
 record_json "$artifact/restart-after.log" "$artifact/native-restart.json"
 playwright-cli -s="$restart_session" close >>"$artifact/restart-browser.log" 2>&1
 restart_started=false
 # No raw handles/CSRF/proofs/private keys in application logs; only fixed marker violations counted.
-if rg -n 'BEGIN PRIVATE KEY|Bearer eyJ|__Host-fitcore_session=|__Host-fitcore_preauth=' "$artifact/backend.log" "$artifact/backend-second.log" "$artifact/bff.log";then echo 'Secret log leak';exit 1;fi
+if rg -q 'BEGIN PRIVATE KEY|Bearer eyJ|__Host-fitcore_session=|__Host-fitcore_preauth=|#(token|invitationToken)=[A-Za-z0-9_-]{43}|Journey-Password!2026|Recovered-Journey!2026|Shared-Owner!2026'  "$artifact/backend.log" "$artifact/backend-second.log" "$artifact/bff.log";then echo 'Secret log leak';exit 1;fi

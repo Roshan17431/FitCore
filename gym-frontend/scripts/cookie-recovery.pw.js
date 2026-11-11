@@ -63,7 +63,7 @@ async (page) => {
     {
       const [c,p]=await fresh();await control(c,'hold','/api/browser/login');await fill(p,'owner1@fixture.invalid');await held(c,'/api/browser/login');
       await p.close();const survivor=await c.newPage();await survivor.bringToFront();await survivor.goto(ui+'/login');await survivor.getByRole('button',{name:'Check sign-in status',exact:true}).click();
-      await survivor.getByRole('alert').filter({hasText:/uncertain/i}).waitFor();
+      await survivor.getByRole('alert').filter({hasText:/This original context remains blocked/i}).waitFor();
       check('old-cookie-recovery-remains-held',!!await marker(survivor)&&await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled()&&(await state(c)).data.currentContext===false);
       await control(c,'release','/api/browser/login');await c.close();
     }
@@ -72,8 +72,16 @@ async (page) => {
       const [c,p]=await fresh();await control(c,'hold-body','/api/browser/login');await fill(p,'owner1@fixture.invalid');await held(c,'/api/browser/login');
       await p.close();await c.clearCookies();await control(c,'release','/api/browser/login');
       const survivor=await c.newPage();await survivor.bringToFront();await survivor.goto(ui+'/login');await survivor.getByRole('button',{name:'Check sign-in status',exact:true}).click();
-      await survivor.getByRole('alert').filter({hasText:/uncertain/i}).waitFor();
-      check('missing-cookie-recovery-remains-held',!!await marker(survivor)&&(await c.cookies(ui)).length===0&&await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled());await c.close();
+      await survivor.getByRole('alert').filter({hasText:/This original context remains blocked/i}).waitFor();
+      check('missing-cookie-recovery-remains-held',!!await marker(survivor)&&(await c.cookies(ui)).length===0&&await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled());
+      const guidance=survivor.getByRole('alert').filter({hasText:'This original context remains blocked'});
+      check('fresh-context-accessible-instructions',(await guidance.innerText()).includes('separate browser profile')&&(await guidance.innerText()).includes('does not repair'));
+      const originalMarker=await marker(survivor),[isolated,newPage]=await fresh();await fill(newPage,'owner2@fixture.invalid');await identity(newPage,2);
+      await survivor.bringToFront();await survivor.reload();
+      assert(await marker(survivor)===originalMarker && await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled(),'isolated context cannot release original fence');
+      await survivor.getByRole('button',{name:'Check sign-in status',exact:true}).click();await survivor.getByRole('alert').filter({hasText:'This original context remains blocked'}).waitFor();
+      check('fresh-isolated-context-does-not-repair-original',await marker(survivor)===originalMarker&&(await state(c)).status===401);
+      await isolated.close();await c.close();
     }
     for(const gym of [1,2]) {
       // The test wrapper has not forwarded this genuine LOGIN at all: row/family
@@ -85,7 +93,7 @@ async (page) => {
         assert(before.status===200&&before.data.transitionState==='IDLE'&&before.data.currentContext===true&&before.data.familyId===bound.preFamilyId&&before.data.contextRevision===bound.preServerRevision&&before.data.familyRevision===bound.preServerRevision,'actual pre-mutation same-N proof');
         await p.close();const survivor=await c.newPage();await survivor.bringToFront();await survivor.goto(ui+'/login');
         await survivor.getByRole('button',{name:'Check sign-in status',exact:true}).click();
-        await survivor.getByRole('alert').filter({hasText:/uncertain/i}).waitFor();
+        await survivor.getByRole('alert').filter({hasText:/This original context remains blocked/i}).waitFor();
         const after=await state(c);
         check(`gym-${gym}-same-revision-pre-mutation-remains-held`,await marker(survivor)===owned&&await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled()&&after.status===200&&after.data.currentContext===true&&after.data.transitionState==='IDLE'&&after.data.contextRevision===bound.preServerRevision&&after.data.familyRevision===bound.preServerRevision);
         await control(c,'release','/api/browser/login');await c.close();
@@ -105,7 +113,7 @@ async (page) => {
         survivor.on('request',r=>{if(new URL(r.url()).pathname==='/api/gym')businessRequests++;});
         await survivor.bringToFront();await survivor.goto(ui+'/login');
         await survivor.getByRole('button',{name:'Check sign-in status',exact:true}).click();
-        await survivor.getByRole('alert').filter({hasText:/uncertain/i}).waitFor();
+        await survivor.getByRole('alert').filter({hasText:/This original context remains blocked/i}).waitFor();
         const switched=await state(c);
         check(`gym-${gym}-raw-different-family-recovery-remains-held`,await marker(survivor)===owned&&await survivor.getByRole('button',{name:'Login',exact:true}).isDisabled()&&switched.status===200&&switched.data.familyId===foreign.data.familyId&&businessRequests===0);
         await c.close();await donor.close();

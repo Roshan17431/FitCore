@@ -1,6 +1,6 @@
 // Real TLS and two independent backend processes sharing one owned disposable PostgreSQL.
 import https from 'node:https';
-import {readFile,writeFile} from 'node:fs/promises';
+import {readFile,readdir,writeFile} from 'node:fs/promises';
 import {createPrivateKey,createHash,randomUUID} from 'node:crypto';
 import {SignJWT} from 'jose';
 const [,,configFile,output]=process.argv;
@@ -44,6 +44,46 @@ const simultaneous=await Promise.all([send(18443,'POST','/api/browser/bootstrap'
 assert(simultaneous.map(r=>r.status).sort().join(',')==='200,401','one shared nonce acceptance');checks.push('shared-gateway-replay');
 const logins=await Promise.all([send(18443,'POST','/api/browser/login',{email:'owner1@fixture.invalid',password:'Browser-Spike!2026'}),send(18445,'POST','/api/browser/login',{email:'owner2@fixture.invalid',password:'Browser-Spike!2026'})]);
 assert(logins.map(r=>r.status).sort().join(',')==='200,423','one shared family transition');checks.push('shared-concurrent-login');
+// New receipts are shared state across actual JVMs; synthetic provider only.
+// The preceding concurrent-login case deliberately left its family PENDING.
+jar.clear();csrf=undefined;r=await send(18443,'POST','/api/browser/bootstrap',{});assert(r.status===200,'new independent receipt context');accept(r);
+async function mailToken(address,fragment){
+  for(let n=0;n<150;n++){
+    for(const file of (await readdir(config.mailbox)).filter(f=>/^[0-9a-f-]{36}\.json$/.test(f))){
+      const mail=JSON.parse(await readFile(`${config.mailbox}/${file}`,'utf8'));
+      if(mail.recipient===address && mail.text.includes(fragment))return mail.text.split(fragment)[1].slice(0,43);
+    }
+    await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  throw Error('Synthetic acceptance missing');
+}
+const address=`shared-${randomUUID()}@fixture.invalid`,secret='Shared-Owner!2026';
+r=await send(18443,'POST','/api/browser/registration/owner',{fullName:'Shared Synthetic Owner',email:address,password:secret,gymName:'Shared Isolated Gym',slug:`shared-${randomUUID()}`});
+assert(r.status===202 && r.cookies.length===0 && r.data===undefined,'tokenless owner intent');
+const activation=await mailToken(address,'#token=');
+const activations=await Promise.all([18443,18445].map(port=>send(port,'POST','/api/browser/verify-email',{email:address,token:activation})));
+assert(activations.map(r=>r.status).sort().join(',')==='204,400' && activations.every(r=>r.cookies.length===0),'single-use cross-instance activation without cookies');
+assert((await send(18445,'GET','/api/auth/me')).status===401,'activation never logs in');checks.push('shared-tokenless-owner-activation');
+r=await send(18443,'POST','/api/browser/login',{email:address,password:secret});assert(r.status===200,'activated owner explicit login');accept(r);
+assert((await send(18445,'POST','/api/browser/ack',{})).status===200,'new owner ACK');
+const oldAuth=cookies(),oldCsrf=csrf;jar.clear();csrf=undefined;r=await send(18445,'POST','/api/browser/bootstrap',{});assert(r.status===200,'separate recovery preauth');accept(r);
+r=await send(18443,'POST','/api/browser/forgot-password',{email:address});assert(r.status===202&&r.cookies.length===0,'recovery intent');
+const reset=await mailToken(address,'/reset-password#token=');
+const resets=await Promise.all([18443,18445].map(port=>send(port,'POST','/api/browser/reset-password',{email:address,token:reset,password:'Changed-Shared!2026'})));
+assert(resets.map(r=>r.status).sort().join(',')==='204,400'&&resets.every(r=>r.cookies.length===0),'single reset consumption across instances');
+assert((await send(18445,'GET','/api/auth/me',undefined,{cookie:oldAuth})).status===401 && oldCsrf,'old owner cookie revoked by actual password reset');checks.push('shared-reset-session-revocation');
+for(const action of ['forgot-password','verification/request']){
+  let denied=false;
+  for(let n=0;n<51;n++){
+    const result=await send(n%2?18443:18445,'POST',`/api/browser/${action}`,{email:'unknown-shared@fixture.invalid'});
+    assert(result.cookies.length===0,'receipts never write cookies');
+    if(result.status===429){denied=true;break;}assert(result.status===202,'generic tokenless receipt');
+  }
+  assert(denied,'shared account receipt ceiling');
+  assert((await send(18443,'POST',`/api/browser/${action}`,{email:address})).status===429 && (await send(18445,'POST',`/api/browser/${action}`,{email:address})).status===429,'both instances deny account budget');
+}
+checks.push('shared-onboarding-abuse-budget');
+assert((await send(18445,'GET','/api/browser/state')).data.transitionState==='IDLE','receipt abuse leaves context unchanged');checks.push('shared-onboarding-no-cookie');
 // Bad credentials must consume a single shared ingress budget across both JVMs.
 jar.clear();csrf=undefined;r=await send(18443,'POST','/api/browser/bootstrap',{});assert(r.status===200,'abuse fixture preauth');accept(r);
 const remaining=300-(Math.floor(Date.now()/1000)%300);
