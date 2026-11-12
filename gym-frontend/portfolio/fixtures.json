@@ -1,0 +1,32 @@
+[
+  {
+    "id": "atlas-strength",
+    "name": "Atlas Strength",
+    "owner": "Morgan Hale",
+    "trainer": "Sam Rivera",
+    "member": "Avery Brooks",
+    "specialization": "Strength foundations",
+    "plan": "Foundations",
+    "price": 35,
+    "months": 1,
+    "booking": "Strength coaching",
+    "time": "09:30",
+    "exercise": "Goblet squat",
+    "category": "Strength"
+  },
+  {
+    "id": "harbor-movement",
+    "name": "Harbor Movement",
+    "owner": "Riley Park",
+    "trainer": "Jordan Ellis",
+    "member": "Casey Reed",
+    "specialization": "Mobility and balance",
+    "plan": "Movement Pass",
+    "price": 60,
+    "months": 3,
+    "booking": "Mobility coaching",
+    "time": "14:00",
+    "exercise": "Single-leg balance",
+    "category": "Mobility"
+  }
+]

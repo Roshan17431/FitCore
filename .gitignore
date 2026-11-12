@@ -61,3 +61,6 @@ gym-frontend/.env.*
 gym-backend/.env.example
 gym-frontend/.env.example
 gym-backend/.env.example
+
+# Generated portfolio preview build and deployment bundle
+/output/portfolio/

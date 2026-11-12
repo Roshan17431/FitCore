@@ -1,0 +1,39 @@
+services:
+  preview:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    mem_limit: 256m
+    pids_limit: 100
+    environment:
+      FITCORE_PREVIEW_ADDRESS: ${FITCORE_PREVIEW_ADDRESS:-:80}
+    ports:
+      - "${FITCORE_PREVIEW_HTTP:-127.0.0.1:18880}:80/tcp"
+      - "${FITCORE_PREVIEW_HTTPS:-127.0.0.1:18446}:443/tcp"
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./site
+        target: /srv
+        read_only: true
+        bind:
+          create_host_path: false
+      - certificates:/data
+      - config:/config
+    tmpfs: [/tmp]
+    logging:
+      options:
+        max-size: "5m"
+        max-file: "2"
+volumes:
+  certificates:
+  config:
